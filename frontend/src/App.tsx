@@ -14,7 +14,7 @@ import Profile from './pages/Profile'
 // Protected Route Component
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const auth = localStorage.getItem('auth')
-  if (auth) {
+  if (!auth) {
     return <Navigate to="/login" replace />
   }
   return <>{children}</>
@@ -24,12 +24,10 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<Layout />}>
-          {/* Public routes */}
+        <Route path="/" element={ <Layout /> }>
           <Route path="login" element={<Login />} />
           <Route path="register" element={<Register />} />
           
-          {/* Protected routes */}
           <Route
             path="dashboard"
             element={
@@ -87,7 +85,6 @@ function App() {
             }
           />
           
-          {/* Default redirect */}
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Route>

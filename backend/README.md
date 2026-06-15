@@ -4,60 +4,15 @@ FastAPI backend for the Face Recognition Attendance System.
 
 ## Setup
 
-### 1. Install Dependencies
+### 1. Installation
 
 ```bash
 cd fras
 python -m venv venv
 source venv\Scripts\activate  # On Linux: venv/bin/activate
 pip install -r requirements.txt
-```
-
-### 2. Configure Environment
-
-Create a `.env` file:
-
-```bash
-cp .env.example .env
-```
-
-Edit `.env` with your credentials:
-
-```env
-SUPABASE_URL=your_supabase_project_url
-SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
-DATABASE_URL=postgresql://user:password@host:port/database
-DB_CONN_LIMIT=10
-JWT_SECRET=your-super-secret-jwt-key-change-this
-PORT=3000
-```
-
-### 3. Set Up Database
-
-Run the schema SQL on your PostgreSQL database:
-
-```bash
-psql -U your_user -d your_database -f schema.sql
-```
-
-Or manually execute the SQL in `schema.sql`.
-
-### 4. Set Up Supabase Storage
-
-1. Go to your Supabase project
-2. Create a storage bucket named `student_images`
-3. Set bucket to private
-4. Add storage policies to allow authenticated uploads
-
-### 5. Run the Server
-
-```bash
 python main.py
 ```
-
-Server will start on `http://localhost:3000`
-
-## API Endpoints
 
 ### Authentication
 
@@ -96,22 +51,6 @@ Server will start on `http://localhost:3000`
 
 - `GET /api/dashboard` - Get dashboard stats (requires auth)
   - Returns: `{ todayPresent, totalStudents, attendanceRate, classesToday }`
-
-## Testing with Frontend
-
-1. Start backend: `python main.py`
-2. Start frontend: `cd ../fras-react && npm run dev`
-3. The frontend proxy is configured to forward API requests to `http://localhost:3000`
-
-## Database Schema
-
-The application requires these tables:
-
-- `users` - User authentication
-- `students` - Student records
-- `attendance` - Attendance records
-
-See `schema.sql` for complete schema.
 
 ## Image Storage
 

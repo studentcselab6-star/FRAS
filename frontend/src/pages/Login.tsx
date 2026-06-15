@@ -5,7 +5,6 @@ import { getApiErrorMessage } from '../services/api'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { useToast } from '../components/ui/Toast'
-import { isValidEmail, getPasswordError } from '../utils/validators'
 
 const Login = () => {
   const navigate = useNavigate()
@@ -54,8 +53,9 @@ const Login = () => {
         })
       )
       
-      toast.success('Login successful!')
-      navigate('/dashboard')
+      toast.success("Login successful!");
+      navigate('/dashboard');
+
     } catch (err: any) {
       console.error('Login error:', err)
       

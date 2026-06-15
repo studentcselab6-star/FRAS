@@ -12,13 +12,14 @@ const Dashboard = () => {
   })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const authentication = localStorage.getItem("auth")
 
   useEffect(() => {
     const fetchStats = async () => {
       setLoading(true)
       setError(null)
       try {
-        const response = await dashboardApi.getStats()
+        const response = await dashboardApi.getStats(authentication)
         setStats(response.data)
       } catch (err: any) {
         console.error('Failed to fetch dashboard stats:', err)

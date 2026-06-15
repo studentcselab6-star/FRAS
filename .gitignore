@@ -5,3 +5,6 @@ app.js
 db_local.js
 node_modules/
 dist/
+package-lock.json
+frontend/package-lock.json
+venv/

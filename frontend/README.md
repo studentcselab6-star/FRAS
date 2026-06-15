@@ -14,18 +14,18 @@ Face Recognition Attendance System - React + TypeScript + Tailwind CSS
 ## Project Structure
 
 ```
-fras-react/
+frontend/
 ├── src/
 │   ├── components/
-│   │   ├── ui/           # Reusable UI components
+│   │   ├── ui/
 │   │   │   ├── Button.tsx
 │   │   │   ├── Input.tsx
 │   │   │   ├── Select.tsx
 │   │   │   ├── Modal.tsx
 │   │   │   ├── Sidebar.tsx
 │   │   │   └── Navbar.tsx
-│   │   └── Camera.tsx    # WebRTC camera component
-│   ├── pages/            # Page components
+│   │   └── Camera.tsx
+│   ├── pages/
 │   │   ├── Dashboard.tsx
 │   │   ├── Students.tsx
 │   │   ├── AddStudent.tsx
@@ -37,13 +37,13 @@ fras-react/
 │   │   ├── Register.tsx
 │   │   └── Layout.tsx
 │   ├── services/
-│   │   └── api.ts        # API client with interceptors
-│   ├── App.tsx           # Main app with routing
-│   ├── main.tsx          # Entry point
-│   └── index.css         # Global styles + Tailwind
+│   │   └── api.ts
+│   ├── App.tsx
+│   ├── main.tsx
+│   └── index.css
 ├── index.html
-├── vite.config.ts        # Vite config with API proxy
-├── tailwind.config.js    # Tailwind customization
+├── vite.config.ts
+├── tailwind.config.js
 ├── postcss.config.js
 └── package.json
 ```

@@ -1,51 +1,19 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { Outlet, useLocation, useNavigate, Navigate } from 'react-router-dom'
 import { Navbar } from '../components/ui/Navbar'
 import { Sidebar } from '../components/ui/Sidebar'
 import { ToastContainer, useToast } from '../components/ui/Toast'
-import type { User } from '../types'
 
 const Layout = () => {
-  const [user, setUser] = useState<User | null>(null)
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [toasts, setToasts] = useState<Array<{ id: string; message: string; type: 'success' | 'error' | 'info' | 'warning' }>>([])
   const location = useLocation()
   const navigate = useNavigate()
   const toast = useToast()
 
-  // Sync auth state with localStorage
-  const syncAuthState = useCallback(() => {
-    const auth = localStorage.getItem('auth')
-    const userData = localStorage.getItem('user')
-    if (auth && userData) {
-      setIsAuthenticated(true)
-      try {
-        setUser(JSON.parse(userData))
-      } catch (err) {
-        console.error('Failed to parse user data:', err)
-        localStorage.removeItem('user')
-      }
-    } else {
-      setIsAuthenticated(false)
-      setUser(null)
-    }
-  }, [])
-
-  // Initial sync
-  useEffect(() => {
-    syncAuthState()
-  }, [syncAuthState])
-
-  // Listen for storage events (sync across tabs)
-  useEffect(() => {
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'auth' || e.key === 'user') {
-        syncAuthState()
-      }
-    }
-    window.addEventListener('storage', handleStorageChange)
-    return () => window.removeEventListener('storage', handleStorageChange)
-  }, [syncAuthState])
+  const user = (() => {
+  const data = localStorage.getItem("user")
+  return data ? JSON.parse(data) : null
+})()
 
   // Listen for toast events
   useEffect(() => {
@@ -76,8 +44,6 @@ const Layout = () => {
   const handleLogout = () => {
     localStorage.removeItem('auth')
     localStorage.removeItem('user')
-    setIsAuthenticated(false)
-    setUser(null)
     toast.success('Logged out successfully')
     navigate('/login')
   }
@@ -101,10 +67,13 @@ const Layout = () => {
   }
 
   // Redirect to login if not authenticated
-  if (!isAuthenticated && location.pathname !== '/login' && location.pathname !== '/register') {
-    navigate('/login')
-    return null
-  }
+if (
+  !localStorage.getItem("auth") &&
+  location.pathname !== "/login" &&
+  location.pathname !== "/register"
+) {
+  return <Navigate to="/login" replace />
+}
 
   return (
     <>

@@ -100,7 +100,11 @@ export const attendanceApi = {
 
 // Dashboard APIs
 export const dashboardApi = {
-  getStats: () => api.get('/api/dashboard'),
+  getStats: (auth: string | null) => api.get('/api/dashboard', {
+    headers: {
+      Authorization: `Bearer ${auth}`
+    }
+  }),
 }
 
 export default api
