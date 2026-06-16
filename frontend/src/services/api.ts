@@ -3,10 +3,10 @@ import type { ApiError } from '../types'
 import { getErrorMessage } from '../utils/apiHelper'
 import { useToast } from '../components/ui/Toast'
 
-const API_BASE_URL = import.meta.env.VITE_API_URL
+const API_BASE_URL = import.meta.env.BACKEND_URL
 
 if (!API_BASE_URL) {
-  console.warn('VITE_API_URL not set, using default localhost:3000')
+  console.warn('BACKEND_URL not set, using default localhost:3000')
 }
 
 const toast = useToast()

@@ -34,13 +34,13 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await db.init_pool()
-    print(f"Server running on http://localhost:{PORT}")
+    print(f"Server running on http://0.0.0.0:{PORT}")
     yield
     await db.close_pool()
 
 app = FastAPI(lifespan=lifespan)
 origins = [
-    "http://localhost:5173"
+    "https://fras-virid.vercel.app"
 ]
 
 app.add_middleware(

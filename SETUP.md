@@ -8,12 +8,7 @@
 -- Create database
 CREATE DATABASE fras_db;
 
--- Run schema
-\c fras_db
-\i schema.sql
-```
-
-Or use any PostgreSQL client to run `schema.sql`.
+Use any PostgreSQL client to run `schema.sql`.
 
 ### 2. Supabase Setup
 

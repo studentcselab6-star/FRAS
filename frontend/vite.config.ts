@@ -8,23 +8,23 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: 'http://localhost:3000',
+        target: 'https://fras-7xws.onrender.com/',
         changeOrigin: true,
       },
       '/auth': {
-        target: 'http://localhost:3000',
+        target: 'https://fras-7xws.onrender.com/',
         changeOrigin: true,
       },
       '/attendance': {
-        target: 'http://localhost:3000',
+        target: 'https://fras-7xws.onrender.com/',
         changeOrigin: true,
       },
       '/update-students': {
-        target: 'http://localhost:3000',
+        target: 'https://fras-7xws.onrender.com/',
         changeOrigin: true,
       },
       '/change-password': {
-        target: 'http://localhost:3000',
+        target: 'https://fras-7xws.onrender.com/',
         changeOrigin: true,
       },
     },
