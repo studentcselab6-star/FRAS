@@ -3,16 +3,16 @@ import type { ApiError } from '../types'
 import { getErrorMessage } from '../utils/apiHelper'
 import { useToast } from '../components/ui/Toast'
 
-const API_BASE_URL = import.meta.env.BACKEND_URL
+const API_BASE_URL = import.meta.env.VITE_BACKEND_URL
 
 if (!API_BASE_URL) {
-  console.warn('BACKEND_URL not set, using default localhost:3000')
+  console.warn('VITE_BACKEND_URL not set, using default localhost:3000')
 }
 
 const toast = useToast()
 
 const api = axios.create({
-  baseURL: API_BASE_URL || 'http://localhost:3001',
+  baseURL: API_BASE_URL || 'http://localhost:3000',
   headers: {
     'Content-Type': 'application/json',
   },
