@@ -50,7 +50,7 @@ const Layout = () => {
 
   const sidebarItems = [
     { path: '/dashboard', name: 'Dashboard', icon: 'fa-tachometer-alt' },
-    { path: '/students', name: 'View Students', icon: 'fa-users' },
+    { path: '/students-section', name: 'View Students', icon: 'fa-users' },
     { path: '/take-attendance', name: 'Take Attendance', icon: 'fa-check-circle' },
     { path: '/check-attendance', name: 'Check Attendance', icon: 'fa-search' },
     { path: '/add-student', name: 'Add Student', icon: 'fa-user-plus' },

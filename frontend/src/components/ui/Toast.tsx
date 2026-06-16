@@ -1,4 +1,3 @@
-import { useEffect } from 'react'
 import type { Toast } from '../../types'
 
 interface ToastContainerProps {

@@ -97,17 +97,17 @@ const AddStudent = () => {
 
       const response = await studentApi.create(formDataToSend)
       
-      if (response.data.affectedRows > 0) {
-        toast.success('Student added successfully!')
-        setFormData({
-          name: '', regid: '', gender: '', email: '', mobile: '', dob: '',
-          programme: '', semester: '', regulation: '', batch: '',
-          fatherMobile: '', lab_section: '', class_section: '', residence: '',
-        })
-        setImages([])
-        setErrors({})
-        cameraRef.current?.clearImages()
-      }
+      
+      toast.success('Student added successfully!')
+      setFormData({
+        name: '', regid: '', gender: '', email: '', mobile: '', dob: '',
+        programme: '', semester: '', regulation: '', batch: '',
+        fatherMobile: '', lab_section: '', class_section: '', residence: '',
+      })
+      setImages([])
+      setErrors({})
+      cameraRef.current?.clearImages()
+      
     } catch (err: any) {
       console.error('Error adding student:', err)
       toast.error(getApiErrorMessage(err))

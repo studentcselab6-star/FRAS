@@ -142,7 +142,7 @@ The API client (`src/services/api.ts`) provides:
 - Response interceptor for 401 handling (auto-logout)
 - Organized API modules:
   - `authApi` - login, register, changePassword
-  - `studentApi` - getAll, search, create, update, delete
+  - `studentApi` - search, create, update, delete
   - `attendanceApi` - submit, getByStudent, getToday
   - `dashboardApi` - getStats
 
@@ -154,7 +154,6 @@ The React frontend expects the following backend endpoints:
 POST   /auth/login              - User login
 POST   /auth/register           - User registration
 POST   /change-password         - Change password
-GET    /students                - Get all students
 GET    /students/{search}       - Search students
 POST   /students                - Create student (multipart/form-data)
 POST   /update-students         - Update student (multipart/form-data)

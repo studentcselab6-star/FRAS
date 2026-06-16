@@ -31,7 +31,6 @@ python main.py
 
 ### Students
 
-- `GET /students` - Get all students (requires auth)
 - `GET /students/{search}` - Search students (requires auth)
 - `POST /students` - Add new student (requires auth)
   - Body: Form data with all student fields + optional `images` file array

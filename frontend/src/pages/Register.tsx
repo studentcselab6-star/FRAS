@@ -52,12 +52,8 @@ const Register = () => {
 
     setLoading(true)
     try {
-      await authApi.register({
-        username: formData.username,
-        email: formData.email,
-        password: formData.password,
-      })
-      
+      await authApi.register(formData.username, formData.email, formData.password )
+
       toast.success('Registration successful! Please login.')
       navigate('/login')
     } catch (err: any) {

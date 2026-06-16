@@ -15,10 +15,6 @@ export default defineConfig({
         target: 'http://localhost:3000',
         changeOrigin: true,
       },
-      '/students': {
-        target: 'http://localhost:3000',
-        changeOrigin: true,
-      },
       '/attendance': {
         target: 'http://localhost:3000',
         changeOrigin: true,

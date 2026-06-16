@@ -1,11 +1,15 @@
 import axios, { AxiosError } from 'axios'
-import type { ApiResponse, ApiError } from '../types'
+import type { ApiError } from '../types'
+import { getErrorMessage } from '../utils/apiHelper'
+import { useToast } from '../components/ui/Toast'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL
 
 if (!API_BASE_URL) {
   console.warn('VITE_API_URL not set, using default localhost:3000')
 }
+
+const toast = useToast()
 
 const api = axios.create({
   baseURL: API_BASE_URL || 'http://localhost:3000',
@@ -14,6 +18,18 @@ const api = axios.create({
   },
   timeout: 30000, // 30 second timeout
 })
+
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const message = getErrorMessage(error);
+    
+    // Automatically trigger a UI pop-up for any API error
+    toast.error(message); 
+    
+    return Promise.reject(error);
+  }
+);
 
 // Request interceptor to add auth token
 api.interceptors.request.use(
@@ -66,25 +82,45 @@ export const authApi = {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     })
   },
-  register: (data: { username: string; email: string; password: string }) => 
-    api.post('/auth/register', data),
+   register: (username: string, email: string, password: string ) => {
+    const formData = new URLSearchParams()
+    formData.append('username', username)
+    formData.append('password', password)
+    formData.append('email', email)
+
+    return api.post('/auth/register', formData, {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    });
+  },
   changePassword: (currentPassword: string, newPassword: string) =>
     api.post('/change-password', { currentPassword, newPassword }),
 }
 
 // Student APIs
 export const studentApi = {
-  getAll: () => api.get('/students'),
-  search: (query: string) => api.get(`/students/${encodeURIComponent(query)}`),
-  create: (formData: FormData) =>
-    api.post('/students', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    }),
+  search: (query: string) => {
+    return api.get(`/students/${encodeURIComponent(query)}`, {
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem("auth")}`
+      }
+    })
+  },
+  create: (formData: FormData) => {
+    return api.post('/students', formData, {
+      headers: { 'Content-Type': 'multipart/form-data',
+                  Authorization: `Bearer ${localStorage.getItem("auth")}`
+       },
+    })
+  },
   update: (formData: FormData) =>
     api.post('/update-students', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     }),
-  delete: (regid: string) => api.delete(`/students/${encodeURIComponent(regid)}`),
+  delete: (regid: string) => api.delete(`/students/${encodeURIComponent(regid)}`, {
+    headers: {
+      Authorization: `Bearer ${localStorage.getItem("auth")}`
+    }
+  }),
 }
 
 // Attendance APIs
@@ -100,11 +136,15 @@ export const attendanceApi = {
 
 // Dashboard APIs
 export const dashboardApi = {
-  getStats: (auth: string | null) => api.get('/api/dashboard', {
-    headers: {
-      Authorization: `Bearer ${auth}`
-    }
-  }),
+  getStats: () => {
+    const authentication = localStorage.getItem("auth")
+
+    return api.get("/api/dashboard", {
+      headers: {
+        Authorization: `Bearer ${authentication}`
+      }
+    })
+  }
 }
 
 export default api

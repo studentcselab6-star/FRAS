@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request, File, Form, UploadFile, HTTPException, Depends, status
+from fastapi import FastAPI, Request, File, Form, UploadFile, HTTPException, Depends, Header
 from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 from supabase import create_client
@@ -47,8 +47,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],  # Allows all HTTP methods (GET, POST, etc.)
-    allow_headers=["*"]  # Allows all headers
+    allow_methods=["*"],
+    allow_headers=["*"]
 )
 # Middleware for logging
 @app.middleware("http")
@@ -74,7 +74,7 @@ async def get_current_user(authorization: str):
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
     except Exception:
-        raise HTTPException(status_code=401, detail="Invalid token format")
+        raise HTTPException(status_code=401, detail="Invalid token fformat")
 
 # ============ AUTH ENDPOINTS ============
 
@@ -88,12 +88,12 @@ async def login(username: str = Form(...), password: str = Form(...)):
         )
         
         if not users or len(users) == 0:
-            raise HTTPException(status_code=401, detail="Invalid username or password")
-        
-        user = users[0]
+            raise HTTPException(status_code=401, detail="No user found")
 
-        #if not pwd_context.verify(password, user["password"]):
-            #raise HTTPException(status_code=401, detail="Invalid username or password")
+        user = users[0]
+        
+        if not pwd_context.verify(password, user["password"]):
+            raise HTTPException(status_code=401, detail="Invalid password")
         
         # Create JWT token
         expire = datetime.utcnow() + timedelta(hours=JWT_EXPIRY_HOURS)
@@ -120,19 +120,14 @@ async def register(username: str = Form(...), email: str = Form(...), password: 
         )
         if existing and len(existing) > 0:
             raise HTTPException(status_code=400, detail="Username or email already exists")
-        
         # Hash password
         hashed_password = pwd_context.hash(password)
-        
         # Insert user
         await db.query(
             "INSERT INTO users (username, email, password, created_at) VALUES ($1, $2, $3, $4)",
             [username, email, hashed_password, datetime.utcnow()]
         )
-        
         return {"message": "User registered successfully", "username": username}
-    except HTTPException:
-        raise
     except Exception as err:
         return JSONResponse(status_code=500, content={"error": str(err)})
 
@@ -168,27 +163,16 @@ async def change_password(
 
 # ============ STUDENT ENDPOINTS ============
 
-@app.get("/students")
-async def get_all_students(authorization: str):
-    """Get all students (authenticated)"""
-    try:
-        await get_current_user(authorization)
-        students = await db.query("SELECT * FROM students ORDER BY name")
-        return await enrich_with_images(students)
-    except HTTPException:
-        raise
-    except Exception as err:
-        return JSONResponse(status_code=500, content={"error": str(err)})
-
 @app.get("/students/{search}")
-async def get_students(search: str, authorization: str):
+async def get_students(search: str, authorization: str = Header(...)):
     """Search students by name, email, or regid"""
     try:
         await get_current_user(authorization)
-        search_term = search.replace("%", " ")
+        #search_term = search.replace("%", " ")
+        print(search)
         students = await db.query(
             "SELECT * FROM students WHERE name LIKE $1 OR email LIKE $1 OR regid LIKE $1",
-            [f"%{search_term}%"]
+            [f"%{search}%"]
         )
         return await enrich_with_images(students)
     except HTTPException:
@@ -206,7 +190,7 @@ async def enrich_with_images(students):
             filename = f"{student['batch']}/{student['programme']}-{student['class_section']}/{student['regid']}.jpg"
             signed = supabase.storage.from_(BUCKET).create_signed_url(filename, 360)
             student["image"] = signed["signedURL"]
-        except:
+        except Exception as e:
             student["image"] = None
     return students
 
@@ -227,40 +211,33 @@ async def add_student(
     residence: str = Form(...),
     semester: str = Form(...),
     images: List[UploadFile] = File([]),
-    authorization: str = Form(...)
+    authorization: str = Header(...)
 ):
     """Add new student with optional images"""
     try:
         await get_current_user(authorization)
         dob = date.fromisoformat(dob)
+        regid = regid.upper()
         
-        rows = await db.query(
+        await db.query(
             """
             INSERT INTO students (
                 name, regid, email, mobile, dob, class_section,
                 father_mobile, gender, lab_section, programme,
                 regulation, batch, residence, semester
             ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
-            RETURNING id
             """,
             [name, regid, email, mobile, dob, class_section, fatherMobile,
              gender, lab_section, programme, regulation, batch, residence, semester]
         )
         
-        new_id = rows[0]["id"] if rows else 0
-        
         # Upload images to Supabase if provided
         if images and supabase:
             for img in images:
                 contents = await img.read()
-                filename = f"{batch}/{programme}-{class_section}/{regid}_{img.filename}"
+                filename = f"{batch}/{programme}-{class_section}/{regid}.jpg"
                 supabase.storage.from_(BUCKET).upload(filename, contents)
-        
-        return {
-            "insertId": new_id,
-            "affectedRows": 1 if rows else 0,
-            "receivedImages": len(images)
-        }
+
     except HTTPException:
         raise
     except Exception as err:
@@ -283,13 +260,14 @@ async def update_student(
     residence: str = Form(...),
     semester: str = Form(...),
     oldregid: str = Form(...),
-    authorization: str = Form(...)
+    authorization: str = Header(...)
 ):
     """Update existing student"""
     try:
         await get_current_user(authorization)
         dob = date.fromisoformat(dob)
-        
+        regid = regid.upper()
+
         await db.query(
             """
             UPDATE students SET
@@ -310,17 +288,43 @@ async def update_student(
         return JSONResponse(status_code=500, content={"error": str(err)})
 
 @app.delete("/students/{regid}")
-async def delete_student(regid: str, authorization: str = Form(...)):
-    """Delete student by regid"""
+async def delete_student(regid: str, authorization: str = Header(...)):
     try:
         await get_current_user(authorization)
-        await db.query("DELETE FROM students WHERE regid=$1", [regid])
+
+        students = await db.query(
+            """
+            SELECT batch, programme, class_section, regid
+            FROM students
+            WHERE regid = $1
+            """,
+            [regid]
+        )
+
+        if not students:
+            raise HTTPException(status_code=404, detail="Student not found")
+
+        student = students[0]
+
+        if supabase:
+            filename = (f"{student['batch']}/{student['programme']}-{student['class_section']}/{student['regid']}.jpg")
+
+            try:
+                supabase.storage.from_(BUCKET).remove([filename])
+            except Exception as e:
+                print(f"Storage delete failed: {e}")
+
+        await db.query(
+            "DELETE FROM students WHERE regid = $1",
+            [regid]
+        )
+
         return {"message": "Student deleted successfully"}
+
     except HTTPException:
         raise
     except Exception as err:
         return JSONResponse(status_code=500, content={"error": str(err)})
-
 # ============ ATTENDANCE ENDPOINTS ============
 
 @app.post("/attendance")
@@ -408,7 +412,7 @@ async def get_student_attendance(
 # ============ DASHBOARD ENDPOINTS ============
 
 @app.get("/api/dashboard")
-async def get_dashboard_stats(authorization: str = Form(...)):
+async def get_dashboard_stats(authorization: str = Header(...)):
     """Get dashboard statistics"""
     try:
         await get_current_user(authorization)

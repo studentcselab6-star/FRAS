@@ -37,7 +37,7 @@ function App() {
             }
           />
           <Route
-            path="students"
+            path="students-section"
             element={
               <ProtectedRoute>
                 <Students />

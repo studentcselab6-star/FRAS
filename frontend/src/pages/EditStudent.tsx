@@ -68,7 +68,7 @@ const EditStudent: React.FC = () => {
       setLoading(false)
     } else {
       // No student data, redirect to Students page
-      navigate('/students')
+      navigate('/students-section')
     }
   }, [student, navigate])
 
@@ -90,7 +90,7 @@ const EditStudent: React.FC = () => {
 
       await studentApi.update(formDataToSend)
       alert('Student updated successfully!')
-      navigate('/students')
+      navigate('/students-section')
     } catch (err: any) {
       alert('Failed to update student: ' + err.message)
     } finally {

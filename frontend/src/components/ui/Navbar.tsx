@@ -16,7 +16,7 @@ export const Navbar: React.FC<NavbarProps> = ({ user, onLogout }) => {
 
   const navigationItems = [
     { path: '/dashboard', name: 'Dashboard', icon: 'fa-tachometer-alt' },
-    { path: '/students', name: 'Students', icon: 'fa-users' },
+    { path: '/students-section', name: 'Students', icon: 'fa-users' },
     { path: '/take-attendance', name: 'Take Attendance', icon: 'fa-check-circle' },
     { path: '/check-attendance', name: 'Check Attendance', icon: 'fa-search' },
     { path: '/add-student', name: 'Add Student', icon: 'fa-user-plus' },

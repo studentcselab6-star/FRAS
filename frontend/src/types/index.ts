@@ -26,7 +26,6 @@ export interface Student {
   id: number
   name: string
   regid: string
-  regid_lower?: string
   gender: string
   email: string
   mobile: string

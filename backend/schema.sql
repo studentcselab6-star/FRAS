@@ -16,7 +16,6 @@ CREATE TABLE IF NOT EXISTS students (
     id SERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     regid VARCHAR(50) UNIQUE NOT NULL,
-    regid_lower VARCHAR(50),
     gender VARCHAR(10) NOT NULL,
     email VARCHAR(255) NOT NULL,
     mobile VARCHAR(20) NOT NULL,
@@ -29,7 +28,6 @@ CREATE TABLE IF NOT EXISTS students (
     lab_section VARCHAR(10) NOT NULL,
     class_section VARCHAR(10) NOT NULL,
     residence VARCHAR(50) NOT NULL,
-    image_url TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -59,16 +57,6 @@ CREATE INDEX IF NOT EXISTS idx_attendance_date ON attendance(date);
 CREATE INDEX IF NOT EXISTS idx_attendance_regid ON attendance(regid);
 CREATE INDEX IF NOT EXISTS idx_attendance_class ON attendance(class);
 CREATE INDEX IF NOT EXISTS idx_attendance_date_status ON attendance(date, status);
-
--- Insert default admin user (password: admin123)
--- Change this password immediately in production!
-INSERT INTO users (username, email, password) 
-VALUES (
-    'admin',
-    'admin@fras.local',
-    '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5GyYzS3MebAJu'
-)
-ON CONFLICT (username) DO NOTHING;
 
 -- Create function to update updated_at timestamp
 CREATE OR REPLACE FUNCTION update_updated_at_column()

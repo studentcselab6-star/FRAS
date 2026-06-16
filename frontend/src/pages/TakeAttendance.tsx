@@ -7,7 +7,6 @@ interface Student {
   id: number
   name: string
   regid: string
-  regid_lower?: string
   class_section?: string
 }
 

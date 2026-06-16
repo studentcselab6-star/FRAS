@@ -25,15 +25,15 @@ async def query(sql, params=None):
     try:
         async with pool.acquire() as conn:
             if sql.strip().upper().startswith(("INSERT", "UPDATE", "DELETE")):
-                return await conn.execute(sql, *(params or []))
-            
+                await conn.execute(sql, *(params or []))
+                return
+
             rows = await conn.fetch(sql, *(params or []))
             return [dict(row) for row in rows]
-    
     except Exception as e:
         import traceback
         traceback.print_exc()
-
+        print(e)
 async def close_pool():
     global pool
     if pool:

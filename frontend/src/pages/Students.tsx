@@ -52,15 +52,13 @@ const Students = memo(() => {
     residence: '',
   })
 
-  useEffect(() => {
-    loadStudents()
-  }, [])
-
   const loadStudents = async (query: string = '') => {
     setLoading(true)
     setError(null)
     try {
+      //query = query.toUpperCase()
       const response = await studentApi.search(query)
+      console.log('Students loaded:', response.data)
       setStudents(response.data)
     } catch (err: any) {
       setError('Failed to load students')
