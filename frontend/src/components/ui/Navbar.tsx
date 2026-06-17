@@ -29,7 +29,7 @@ export const Navbar: React.FC<NavbarProps> = ({ user, onLogout }) => {
     navigate('/login')
   }
 
-  const handleNavigate = (path: string) => {
+  const handleNavigate = () => {
       setIsMenuOpen(false)
     }
   const getInitials = (username?: string) => {
@@ -104,7 +104,7 @@ export const Navbar: React.FC<NavbarProps> = ({ user, onLogout }) => {
               <Link
                 key={item.path}
                 to={item.path}
-                onClick={() => handleNavigate(item.path)}
+                onClick={() => navigate(item.path)}
                 className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all duration-300 ${
                   location.pathname === item.path
                     ? 'bg-fras-gold-gradient text-white'
