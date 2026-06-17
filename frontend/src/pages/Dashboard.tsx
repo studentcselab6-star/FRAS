@@ -27,8 +27,7 @@ const Dashboard = () => {
         setLoading(false)
       }
     }
-
-    fetchStats()
+  fetchStats()
   }, [])
 
   if (loading) {

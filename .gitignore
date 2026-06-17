@@ -1,8 +1,7 @@
 .env
 swrn_pics/
 __pycache__/
-app.js
-db_local.js
+frontend/.env
 node_modules/
 dist/
 package-lock.json
