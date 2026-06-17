@@ -34,7 +34,7 @@ export const Navbar: React.FC<NavbarProps> = ({ user, onLogout }) => {
     }
   const getInitials = (username?: string) => {
     if (!username) return 'no username'
-    return username.charAt(0).toUpperCase()
+    return username.toUpperCase()
   }
 
   return (
