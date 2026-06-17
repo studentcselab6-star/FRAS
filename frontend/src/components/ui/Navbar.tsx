@@ -99,7 +99,7 @@ export const Navbar: React.FC<NavbarProps> = ({ user, onLogout }) => {
 
         {/* Mobile navigation */}
         {isMenuOpen && (
-          <div className="md:hidden mt-3 flex flex-col gap-2 max-h-0 overflow-hidden transition-all duration-300">
+          <div className="md:hidden mt-3 flex flex-col gap-2 overflow-hidden transition-all duration-300">
             {navigationItems.map((item) => (
               <Link
                 key={item.path}
