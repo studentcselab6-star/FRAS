@@ -40,7 +40,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 origins = [
-    "https://fras-virid.vercel.app"
+    "https://fras-virid.vercel.app",
+    "http://localhost:3000"
 ]
 
 app.add_middleware(
