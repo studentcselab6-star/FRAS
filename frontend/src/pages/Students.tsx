@@ -296,7 +296,7 @@ const Students = memo(() => {
                       <img
                         src={student.image}
                         alt={student.name}
-                        className="w-12 h-12 object-cover rounded-lg border-2 border-fras-gold"
+                        className="w-12 h-12 object-cover rounded-lg border-2 border-fras-gold hover:w-24 hover:h-24 transition-all duration-300"
                       />
                     ) : (
                       <div className="w-12 h-12 bg-gray-200 rounded-lg flex items-center justify-center">
