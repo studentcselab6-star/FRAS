@@ -12,7 +12,7 @@ if (!API_BASE_URL) {
 const toast = useToast()
 
 const api = axios.create({
-  baseURL: API_BASE_URL || 'http://localhost:3000',
+  baseURL: API_BASE_URL || 'http://localhost:3001',
   headers: {
     'Content-Type': 'application/json',
   },

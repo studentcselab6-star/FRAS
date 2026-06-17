@@ -293,14 +293,10 @@ const Students = memo(() => {
                   <td className="table-cell">{index + 1}</td>
                   <td className="table-cell">
                     {student.image ? (
-                      
-  <div className="relative overflow-visible">
-    <img
-      src={student.image}
-      alt={student.name}
-      className="w-12 h-12 object-cover rounded-lg border-2 border-fras-gold transition-transform duration-300 hover:scale-200 hover:z-50 relative"
-    />
-  </div>
+                      <img
+                        src={student.image}
+                        alt={student.name}
+                        className="w-12 h-12 object-cover rounded-lg border-2 border-fras-gold transition-transform duration-300 hover:scale-200 hover:z-50 relative"
                       />
                     ) : (
                       <div className="w-12 h-12 bg-gray-200 rounded-lg flex items-center justify-center">
