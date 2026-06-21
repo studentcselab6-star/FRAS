@@ -21,7 +21,6 @@ export interface ChangePasswordData {
   newPassword: string
 }
 
-// Student Types
 export interface Student {
   id: number
   name: string
@@ -60,6 +59,11 @@ export interface StudentFormData {
 
 export interface StudentUpdateData extends StudentFormData {
   oldregid: string
+}
+
+export interface CameraProps {
+  onImagesChange?: (images: CapturedImage[]) => void
+  maxImages?: number
 }
 
 // Attendance Types
@@ -114,7 +118,6 @@ export interface ApiError {
   code?: string
 }
 
-// Camera Types
 export interface CapturedImage {
   id: string
   blob: Blob
@@ -128,7 +131,6 @@ export interface CameraHandle {
   clearImages: () => void
 }
 
-// UI Component Types
 export interface ButtonProps {
   children: React.ReactNode
   variant?: 'primary' | 'success' | 'danger' | 'secondary'
@@ -154,17 +156,6 @@ export interface InputProps {
   helperText?: string
 }
 
-export interface SelectProps {
-  label: string
-  value: string
-  onChange: (e: React.ChangeEvent<HTMLSelectElement>) => void
-  name?: string
-  options: Array<{ value: string; label: string }>
-  required?: boolean
-  className?: string
-  error?: string
-}
-
 export interface ModalProps {
   isOpen: boolean
   onClose: () => void
@@ -174,13 +165,11 @@ export interface ModalProps {
   size?: 'sm' | 'md' | 'lg' | 'xl'
 }
 
-// Dropdown Options Types
 export interface DropdownOption {
   value: string
   label: string
 }
 
-// Toast Notification Types
 export interface Toast {
   id: string
   message: string

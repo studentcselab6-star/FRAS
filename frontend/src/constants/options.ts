@@ -1,12 +1,6 @@
 // Dropdown Options for Forms
 import type { DropdownOption } from '../types'
 
-export const genderOptions: DropdownOption[] = [
-  { value: '', label: 'Select Gender' },
-  { value: 'M', label: 'Male' },
-  { value: 'F', label: 'Female' },
-]
-
 export const programmeOptions: DropdownOption[] = [
   { value: '', label: 'Select Programme' },
   { value: 'BCA', label: 'BCA' },

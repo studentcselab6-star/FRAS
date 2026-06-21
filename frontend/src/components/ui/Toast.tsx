@@ -26,7 +26,7 @@ export const ToastContainer: React.FC<ToastContainerProps> = ({
             bg-slate-900/95
             shadow-[0_0_25px_rgba(212,175,55,0.25)]
             animate-slide-in-right
-            transition-all duration-300
+            transition-all duration-500
 
             ${ toast.type === 'success' ? 'border-[#66FF00]/40 text-[#66FF00]' : '' }
 
@@ -117,7 +117,7 @@ export const useToast = () => {
   const addToast = (
     message: string,
     type: Toast['type'] = 'info',
-    duration: number = 5000
+    duration: number = 3000
   ) => {
     const id = crypto.randomUUID()
 
@@ -183,11 +183,11 @@ style.textContent = `
   }
 
   .animate-slide-in-right {
-    animation: slide-in-right 0.3s ease-out;
+    animation: slide-in-right 0.2s ease-out;
   }
 
   .animate-toast-progress {
-    animation: toast-progress 5s linear forwards;
+    animation: toast-progress 3s linear forwards !important;
   }
 `
 

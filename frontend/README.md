@@ -20,7 +20,6 @@ frontend/
 │   │   ├── ui/
 │   │   │   ├── Button.tsx
 │   │   │   ├── Input.tsx
-│   │   │   ├── Select.tsx
 │   │   │   ├── Modal.tsx
 │   │   │   ├── Sidebar.tsx
 │   │   │   └── Navbar.tsx
@@ -119,7 +118,6 @@ Vite is configured to proxy API requests to the backend. See `vite.config.ts` fo
 
 - **Button** - Variants: primary, success, danger, secondary; Sizes: sm, md, lg
 - **Input** - With label, error states, helper text
-- **Select** - Custom styled dropdown with options
 - **Modal** - Reusable modal with header, footer, size options
 - **Sidebar** - Navigation sidebar with active state
 - **Navbar** - Responsive navbar with mobile menu

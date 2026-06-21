@@ -212,9 +212,7 @@ export const Camera = forwardRef<CameraHandle, CameraProps>(
                 />
                 <button
                   onClick={() => deleteImage(image.id)}
-                  className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
-                  type="button"
-                  aria-label="Delete image"
+                  className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600"
                 >
                   <i className="fas fa-times" />
                 </button>
@@ -237,6 +235,7 @@ export const Camera = forwardRef<CameraHandle, CameraProps>(
             <>
               <Button
                 variant="secondary"
+                className='text-yellow-500'
                 onClick={toggleCamera}
                 type="button"
               >

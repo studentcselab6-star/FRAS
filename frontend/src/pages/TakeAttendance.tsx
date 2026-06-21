@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { studentApi, attendanceApi } from '../services/api'
-import { Button } from '../components/ui/Button'
+import { Button } from '../components/ui/'
 import { Camera, type CameraHandle, type CapturedImage } from '../components/Camera'
 
 interface Student {

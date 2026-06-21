@@ -2,9 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { authApi } from '../services/api'
 import { getApiErrorMessage } from '../services/api'
-import { Button } from '../components/ui/Button'
-import { Input } from '../components/ui/Input'
-import { useToast } from '../components/ui/Toast'
+import { Button, Input, useToast } from '../components/ui/'
 
 const Login = () => {
   const navigate = useNavigate()
@@ -126,7 +124,7 @@ const Login = () => {
             >
               {loading ? (
                 <>
-                  <i className="fas fa-spinner fa-spin mr-2" />
+                  <i className="fas fa-spin mr-2" />
                   Signing in...
                 </>
               ) : (

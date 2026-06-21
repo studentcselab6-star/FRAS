@@ -1,13 +1,11 @@
 import { useState, useRef, useMemo } from 'react'
 import { studentApi } from '../services/api'
 import { getApiErrorMessage } from '../services/api'
-import { Button } from '../components/ui/Button'
+import { Button, useToast } from '../components/ui/'
 import type { CameraHandle, CapturedImage, StudentFormData } from '../types'
 import { Camera } from '../components/Camera'
-import { useToast } from '../components/ui/Toast'
 import { isValidPhone, isValidEmail } from '../utils/validators'
 import {
-  genderOptions,
   programmeOptions,
   semesterOptions,
   regulationOptions,
@@ -17,6 +15,7 @@ import {
 } from '../constants/options'
 
 const AddStudent = () => {
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const cameraRef = useRef<CameraHandle>(null)
   const toast = useToast()
   const [loading, setLoading] = useState(false)
@@ -47,6 +46,21 @@ const AddStudent = () => {
   const openCamera = () => {
     cameraRef.current?.open()
   }
+
+  
+const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const file = e.target.files?.[0]
+  if (!file) return
+
+  setImages([
+    {
+      id: crypto.randomUUID(),
+      blob: file,
+      url: URL.createObjectURL(file),
+    } as CapturedImage,
+  ])
+}
+
 
   const validateForm = (): boolean => {
     const newErrors: Partial<Record<keyof StudentFormData, string>> = {}
@@ -152,6 +166,24 @@ const AddStudent = () => {
             <Camera ref={cameraRef} onImagesChange={handleImagesChange} />
           </div>
 
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple={false}
+              className="hidden"
+              onChange={handleFileUpload}
+            />
+
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+            >
+              <i className="fas fa-upload" />
+              Upload Photo
+            </button>
+
           {/* Personal Information */}
           <div className="border-b border-gray-200 pb-6">
             <h3 className="text-lg font-semibold text-gray-800 mb-4">Personal Information</h3>
@@ -190,9 +222,9 @@ const AddStudent = () => {
                   onChange={handleChange}
                   className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-fras-gold focus:border-transparent ${errors.gender ? 'border-red-500' : 'border-gray-300'}`}
                 >
-                  {genderOptions.map(opt => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                  ))}
+                  <option value="">Select Gender</option>
+                  <option value="M">Male</option>
+                  <option value="F">Female</option>
                 </select>
                 {errors.gender && <p className="mt-1 text-sm text-red-600">{errors.gender}</p>}
               </div>
@@ -368,6 +400,7 @@ const AddStudent = () => {
             <Button
               type="button"
               variant="secondary"
+              className="text-yellow-500"
               onClick={() => {
                 setFormData({
                   name: '', regid: '', gender: '', email: '', mobile: '', dob: '',

@@ -1,7 +1,5 @@
 import axios, { AxiosError } from 'axios'
 import type { ApiError } from '../types'
-import { getErrorMessage } from '../utils/apiHelper'
-import { useToast } from '../components/ui/Toast'
 
 const API_BASE_URL = import.meta.env.VITE_BACKEND_URL
 
@@ -9,27 +7,13 @@ if (!API_BASE_URL) {
   console.warn('VITE_BACKEND_URL not set, using default localhost:3000')
 }
 
-const toast = useToast()
-
 const api = axios.create({
-  baseURL: API_BASE_URL || 'http://localhost:3001',
+  baseURL: API_BASE_URL || 'http://localhost:3000',
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 60000, // 60 second timeout
+  timeout: 60000
 })
-
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    const message = getErrorMessage(error);
-    
-    // Automatically trigger a UI pop-up for any API error
-    toast.error(message); 
-    
-    return Promise.reject(error);
-  }
-);
 
 // Request interceptor to add auth token
 api.interceptors.request.use(
@@ -99,28 +83,22 @@ export const authApi = {
 // Student APIs
 export const studentApi = {
   search: (query: string) => {
-    return api.get(`/students/${encodeURIComponent(query)}`, {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem("auth")}`
-      }
-    })
+    return api.get(`/students/${encodeURIComponent(query)}`)
   },
   create: (formData: FormData) => {
     return api.post('/students', formData, {
-      headers: { 'Content-Type': 'multipart/form-data',
-                  Authorization: `Bearer ${localStorage.getItem("auth")}`
-       },
+      headers: { 'Content-Type': 'multipart/form-data'
+      },
     })
   },
-  update: (formData: FormData) =>
-    api.post('/update-students', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    }),
-  delete: (regid: string) => api.delete(`/students/${encodeURIComponent(regid)}`, {
-    headers: {
-      Authorization: `Bearer ${localStorage.getItem("auth")}`
-    }
-  }),
+  update: (formData: FormData) => {
+
+return api.post('/update-students', formData, {
+      headers: { 'Content-Type': 'multipart/form-data'
+      },
+    })
+  },
+  delete: (regid: string) => api.delete(`/students/${encodeURIComponent(regid)}`),
 }
 
 // Attendance APIs
@@ -136,15 +114,7 @@ export const attendanceApi = {
 
 // Dashboard APIs
 export const dashboardApi = {
-  getStats: () => {
-    const authentication = localStorage.getItem("auth")
-
-    return api.get("/api/dashboard", {
-      headers: {
-        Authorization: `Bearer ${authentication}`
-      }
-    })
-  }
+  getStats: () => { return api.get("/api/dashboard") }
 }
 
 export default api

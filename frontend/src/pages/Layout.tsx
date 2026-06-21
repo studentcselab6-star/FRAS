@@ -1,8 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Outlet, useLocation, useNavigate, Navigate } from 'react-router-dom'
-import { Navbar } from '../components/ui/Navbar'
-import { Sidebar } from '../components/ui/Sidebar'
-import { ToastContainer, useToast } from '../components/ui/Toast'
+import { Navbar, Sidebar, ToastContainer, useToast } from '../components/ui/'
 
 const Layout = () => {
   const [toasts, setToasts] = useState<Array<{ id: string; message: string; type: 'success' | 'error' | 'info' | 'warning' }>>([])

@@ -1,30 +1,25 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { studentApi } from '../services/api'
-import { Button } from '../components/ui/Button'
-
-interface Student {
-  id: number
-  name: string
-  regid: string
-  gender: string
-  email: string
-  mobile: string
-  dob: string
-  programme: string
-  semester: string
-  regulation: string
-  batch: string
-  father_mobile: string
-  lab_section: string
-  class_section: string
-  residence: string
-}
+import { Button } from '../components/ui/'
+import {
+  programmeOptions,
+  semesterOptions,
+  regulationOptions,
+  batchOptions,
+  sectionOptions,
+  residenceOptions,
+} from '../constants/options'
+import { CameraHandle, CapturedImage } from '../types'
+import { Camera } from '../components/Camera'
+import { Student } from '../types'
 
 const EditStudent: React.FC = () => {
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const cameraRef = useRef<CameraHandle>(null)
+  const [images, setImages] = useState<CapturedImage[]>([])
   const navigate = useNavigate()
   const location = useLocation()
-  const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   
   // Get student data from location state (passed from Students page)
@@ -45,6 +40,7 @@ const EditStudent: React.FC = () => {
     lab_section: '',
     class_section: '',
     residence: '',
+    image: ''
   })
 
   useEffect(() => {
@@ -64,13 +60,45 @@ const EditStudent: React.FC = () => {
         lab_section: student.lab_section,
         class_section: student.class_section,
         residence: student.residence,
+        image: student.image
       })
-      setLoading(false)
     } else {
       // No student data, redirect to Students page
       navigate('/students-section')
     }
   }, [student, navigate])
+
+  const handleImagesChange = (newImages: CapturedImage[]) => {
+    setImages(newImages)
+  }
+
+  const openCamera = () => {
+    cameraRef.current?.open()
+  }
+
+  useEffect(() => {
+  if (student?.image) {
+    setImages([
+      {
+        id: 'existing',
+        url: student.image,
+      } as CapturedImage,
+    ])
+  }
+}, [student])
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setImages([
+      {
+        id: crypto.randomUUID(),
+        blob: file,
+        url: URL.createObjectURL(file),
+      } as CapturedImage,
+    ])
+  }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target
@@ -88,6 +116,9 @@ const EditStudent: React.FC = () => {
       })
       formDataToSend.append('oldregid', student!.regid)
 
+      if (images[0]?.blob) {
+        formDataToSend.append('image', images[0].blob)
+      }
       await studentApi.update(formDataToSend)
       alert('Student updated successfully!')
       navigate('/students-section')
@@ -96,105 +127,6 @@ const EditStudent: React.FC = () => {
     } finally {
       setSaving(false)
     }
-  }
-
-  const programmeOptions = [
-    { value: '', label: 'Select Programme' },
-    { value: 'BCA', label: 'BCA' },
-    { value: 'BBA', label: 'BBA' },
-    { value: 'MCA', label: 'MCA' },
-    { value: 'MBA', label: 'MBA' },
-    { value: 'S&H', label: 'S&H' },
-    { value: 'CSE', label: 'CSE' },
-    { value: 'AIML', label: 'AIML' },
-    { value: 'CSEDS', label: 'CSEDS' },
-    { value: 'CSEAIDS', label: 'CSEAIDS' },
-    { value: 'CSECS', label: 'CSECS' },
-    { value: 'CSEBS', label: 'CSEBS' },
-    { value: 'IT', label: 'IT' },
-    { value: 'ECE', label: 'ECE' },
-    { value: 'EEE', label: 'EEE' },
-    { value: 'MECH', label: 'Mech' },
-    { value: 'RBT', label: 'Robotics' },
-    { value: 'CIV', label: 'Civil' },
-  ]
-
-  const semesterOptions = [
-    { value: '', label: 'Select Semester' },
-    { value: 'First Semester', label: 'First Semester' },
-    { value: 'Second Semester', label: 'Second Semester' },
-    { value: 'Third Semester', label: 'Third Semester' },
-    { value: 'Fourth Semester', label: 'Fourth Semester' },
-    { value: 'Fifth Semester', label: 'Fifth Semester' },
-    { value: 'Sixth Semester', label: 'Sixth Semester' },
-    { value: 'Seventh Semester', label: 'Seventh Semester' },
-    { value: 'Eighth Semester', label: 'Eighth Semester' },
-  ]
-
-  const regulationOptions = [
-    { value: '', label: 'Select Regulation' },
-    { value: 'R23', label: 'R23' },
-    { value: 'R24', label: 'R24' },
-    { value: 'R25', label: 'R25' },
-    { value: 'R26', label: 'R26' },
-    { value: 'R27', label: 'R27' },
-    { value: 'R28', label: 'R28' },
-    { value: 'R29', label: 'R29' },
-  ]
-
-  const batchOptions = [
-    { value: '', label: 'Select Batch' },
-    { value: '2020-2024', label: '2020-2024' },
-    { value: '2021-2025', label: '2021-2025' },
-    { value: '2022-2026', label: '2022-2026' },
-    { value: '2023-2027', label: '2023-2027' },
-    { value: '2022-2024', label: '2022-2024' },
-    { value: '2023-2025', label: '2023-2025' },
-    { value: '2020-2022', label: '2020-2022' },
-    { value: '2019-2023', label: '2019-2023' },
-    { value: '2018-2022', label: '2018-2022' },
-    { value: '2024-2028', label: '2024-2028' },
-    { value: '2024-2027', label: '2024-2027' },
-    { value: '2024-2026', label: '2024-2026' },
-    { value: '2025-2028', label: '2025-2028' },
-    { value: '2025-2027', label: '2025-2027' },
-  ]
-
-  const sectionOptions = [
-    { value: '', label: 'Select Section' },
-    { value: 'A', label: 'A' },
-    { value: 'B', label: 'B' },
-    { value: 'C', label: 'C' },
-    { value: 'D', label: 'D' },
-    { value: 'E', label: 'E' },
-    { value: 'F', label: 'F' },
-    { value: 'G', label: 'G' },
-    { value: 'H', label: 'H' },
-    { value: 'I', label: 'I' },
-  ]
-
-  const residenceOptions = [
-    { value: '', label: 'Select Residence' },
-    { value: 'hosteler', label: 'Hosteler' },
-    { value: 'bus', label: 'Bus' },
-    { value: 'own transport', label: 'Own Transport' },
-  ]
-
-  const genderOptions = [
-    { value: '', label: 'Select Gender' },
-    { value: 'M', label: 'Male' },
-    { value: 'F', label: 'Female' },
-  ]
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-center">
-          <i className="fas fa-spinner fa-spin text-4xl text-fras-gold mb-4" />
-          <p className="text-white text-lg">Loading student data...</p>
-        </div>
-      </div>
-    )
   }
 
   return (
@@ -206,6 +138,52 @@ const EditStudent: React.FC = () => {
 
       <div className="bg-white rounded-lg shadow-2xl p-8">
         <form onSubmit={handleSubmit} className="space-y-6">
+
+          <div className="border-b border-gray-200 pb-6">
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">
+              Student Photo
+            </h3>
+          
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={openCamera}
+                className="px-6 py-3 bg-fras-gold text-white rounded-lg"
+              >
+                <i className="fas fa-camera" />
+                Take Photo
+              </button>
+          
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="px-6 py-3 bg-blue-600 text-white rounded-lg"
+              >
+                <i className="fas fa-upload" />
+                Upload Photo
+              </button>
+            </div>
+          
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleFileUpload}
+            />
+          Current Photo: 
+            <img
+              src={student?.image}
+              alt="Student"
+              className="mt-4 w-32 h-32 rounded-lg object-cover border"
+            />
+          
+            <Camera
+              ref={cameraRef}
+              onImagesChange={handleImagesChange}
+            />
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-3">
               <label className="block text-sm font-medium text-gray-700 mb-2">Full Name</label>
@@ -240,9 +218,9 @@ const EditStudent: React.FC = () => {
                 required
                 className="form-select"
               >
-                {genderOptions.map(opt => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
+                <option value="">Select Gender</option>
+                <option value="M">Male</option>
+                <option value="F">Female</option>
               </select>
             </div>
 
@@ -406,6 +384,7 @@ const EditStudent: React.FC = () => {
             <Button
               type="button"
               variant="secondary"
+              className="text-yellow-500"
               onClick={() => navigate('/students')}
             >
               Cancel

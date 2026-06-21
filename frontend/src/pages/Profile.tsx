@@ -1,10 +1,7 @@
 import { useState } from 'react'
-import { Button } from '../components/ui/Button'
-import { Input } from '../components/ui/Input'
-import { Modal } from '../components/ui/Modal'
+import { Button, Input, Modal, useToast } from '../components/ui/'
 import { authApi } from '../services/api'
 import { getApiErrorMessage } from '../services/api'
-import { useToast } from '../components/ui/Toast'
 import { getPasswordError } from '../utils/validators'
 import type { User } from '../types'
 
@@ -126,6 +123,7 @@ const Profile = () => {
           <>
             <Button
               variant="secondary"
+              className="text-yellow-500"
               onClick={() => setIsPasswordModalOpen(false)}
               type="button"
             >

@@ -1,9 +1,7 @@
 import { useState } from 'react'
 import { attendanceApi } from '../services/api'
 import { getApiErrorMessage } from '../services/api'
-import { Button } from '../components/ui/Button'
-import { Input } from '../components/ui/Input'
-import { useToast } from '../components/ui/Toast'
+import { Button, Input, useToast } from '../components/ui/'
 import type { AttendanceEntry } from '../types'
 
 const CheckAttendance = () => {

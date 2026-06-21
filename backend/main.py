@@ -1,4 +1,5 @@
-from fastapi import FastAPI, Request, File, Form, UploadFile, HTTPException, Depends, Header
+from fastapi import FastAPI, Request, File, Form, UploadFile, HTTPException, Header
+from fastapi.responses import RedirectResponse
 from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 from supabase import create_client
@@ -75,7 +76,11 @@ async def get_current_user(authorization: str):
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
     except Exception:
-        raise HTTPException(status_code=401, detail="Invalid token fformat")
+        raise HTTPException(status_code=401, detail="Invalid token format")
+
+@app.get("/{full_path:path}")
+def default_route(full_path: str):
+    return RedirectResponse("/")
 
 # ============ AUTH ENDPOINTS ============
 
@@ -136,7 +141,7 @@ async def register(username: str = Form(...), email: str = Form(...), password: 
 async def change_password(
     current_password: str = Form(...),
     new_password: str = Form(...),
-    authorization: str = Form(...)
+    authorization: str = Header(...)
 ):
     """Change password for authenticated user"""
     try:
@@ -261,6 +266,7 @@ async def update_student(
     residence: str = Form(...),
     semester: str = Form(...),
     oldregid: str = Form(...),
+    image: List[UploadFile] = File([]),
     authorization: str = Header(...)
 ):
     """Update existing student"""
@@ -271,17 +277,51 @@ async def update_student(
 
         await db.query(
             """
-            UPDATE students SET
-                name=$1, regid=$2, email=$3, mobile=$4, dob=$5,
-                class_section=$6, father_mobile=$7, gender=$8,
-                lab_section=$9, programme=$10, regulation=$11,
-                batch=$12, residence=$13, semester=$14
+            UPDATE students
+            SET
+                name = $1,
+                regid = $2,
+                email = $3,
+                mobile = $4,
+                dob = $5,
+                class_section = $6,
+                father_mobile = $7,
+                gender = $8,
+                lab_section = $9,
+                programme = $10,
+                regulation = $11,
+                batch = $12,
+                residence = $13,
+                semester = $14
             WHERE regid = $15
+              AND (
+                name IS DISTINCT FROM $1 OR
+                regid IS DISTINCT FROM $2 OR
+                email IS DISTINCT FROM $3 OR
+                mobile IS DISTINCT FROM $4 OR
+                dob IS DISTINCT FROM $5 OR
+                class_section IS DISTINCT FROM $6 OR
+                father_mobile IS DISTINCT FROM $7 OR
+                gender IS DISTINCT FROM $8 OR
+                lab_section IS DISTINCT FROM $9 OR
+                programme IS DISTINCT FROM $10 OR
+                regulation IS DISTINCT FROM $11 OR
+                batch IS DISTINCT FROM $12 OR
+                residence IS DISTINCT FROM $13 OR
+                semester IS DISTINCT FROM $14
+              )
             """,
             [name, regid, email, mobile, dob, class_section, fatherMobile,
              gender, lab_section, programme, regulation, batch, residence,
              semester, oldregid]
         )
+
+        # Upload images to Supabase if provided
+        if image and supabase:
+            contents = await image.read()
+            filename = f"{batch}/{programme}-{class_section}/{regid}.jpg"
+            supabase.storage.from_(BUCKET).upload(filename, contents, {"upsert": "true"})
+
         return {"message": "Student updated successfully"}
     except HTTPException:
         raise
@@ -326,10 +366,11 @@ async def delete_student(regid: str, authorization: str = Header(...)):
         raise
     except Exception as err:
         return JSONResponse(status_code=500, content={"error": str(err)})
+
 # ============ ATTENDANCE ENDPOINTS ============
 
 @app.post("/attendance")
-async def submit_attendance(data: dict, authorization: str = Form(...)):
+async def submit_attendance(data: dict, authorization: str = Header(...)):
     """Submit attendance for a class"""
     try:
         await get_current_user(authorization)
@@ -369,7 +410,7 @@ async def submit_attendance(data: dict, authorization: str = Form(...)):
         return JSONResponse(status_code=500, content={"error": str(err)})
 
 @app.get("/attendance/today")
-async def get_today_attendance(authorization: str = Form(...)):
+async def get_today_attendance(authorization: str = Header(...)):
     """Get today's attendance records"""
     try:
         await get_current_user(authorization)
@@ -389,7 +430,7 @@ async def get_student_attendance(
     student_id: str,
     fromDate: str,
     toDate: str,
-    authorization: str = Form(...)
+    authorization: str = Header(...)
 ):
     """Get attendance records for a specific student"""
     try:
