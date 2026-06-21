@@ -90,7 +90,6 @@ export interface AttendanceEntry {
   time?: string
 }
 
-// Dashboard Types
 export interface DashboardStats {
   todayPresent: number
   totalStudents: number
@@ -98,7 +97,6 @@ export interface DashboardStats {
   classesToday: number
 }
 
-// API Response Types
 export interface ApiResponse<T = any> {
   data: T
   status: number
