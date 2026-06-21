@@ -78,6 +78,10 @@ async def get_current_user(authorization: str):
     except Exception:
         raise HTTPException(status_code=401, detail="Invalid token format")
 
+@app.get("/")
+def home():
+    return {"message": "API is running..."}
+
 @app.get("/{full_path:path}")
 def default_route(full_path: str):
     return RedirectResponse("/")
