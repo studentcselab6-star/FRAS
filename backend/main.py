@@ -82,10 +82,6 @@ async def get_current_user(authorization: str):
 def home():
     return {"message": "API is running..."}
 
-@app.get("/{full_path:path}")
-def default_route(full_path: str):
-    return RedirectResponse("/")
-
 # ============ AUTH ENDPOINTS ============
 
 @app.post("/auth/login")
