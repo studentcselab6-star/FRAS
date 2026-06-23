@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { navigationItems } from '../../constants/navigation'
 
 interface NavbarProps {
   user?: {
@@ -11,16 +12,21 @@ interface NavbarProps {
 
 export const Navbar: React.FC<NavbarProps> = ({ user, onLogout }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const [openMobileGroups, setOpenMobileGroups] = useState<Set<string>>(new Set())
   const location = useLocation()
   const navigate = useNavigate()
 
-  const navigationItems = [
-    { path: '/dashboard', name: 'Dashboard', icon: 'fa-tachometer-alt' },
-    { path: '/students-section', name: 'Students', icon: 'fa-users' },
-    { path: '/take-attendance', name: 'Take Attendance', icon: 'fa-check-circle' },
-    { path: '/check-attendance', name: 'Check Attendance', icon: 'fa-search' },
-    { path: '/add-student', name: 'Add Student', icon: 'fa-user-plus' },
-  ]
+  const isChildActive = (children?: Array<{ path: string }>) =>
+    children?.some(child => location.pathname === child.path) ?? false
+
+  const toggleMobileGroup = (name: string) => {
+    setOpenMobileGroups(prev => {
+      const next = new Set(prev)
+      if (next.has(name)) next.delete(name)
+      else next.add(name)
+      return next
+    })
+  }
 
   const handleLogout = () => {
     localStorage.removeItem('auth')
@@ -29,9 +35,6 @@ export const Navbar: React.FC<NavbarProps> = ({ user, onLogout }) => {
     navigate('/login')
   }
 
-  const handleNavigate = () => {
-      setIsMenuOpen(false)
-    }
   const getInitials = (username?: string) => {
     if (!username) return 'no username'
     return username.toUpperCase()
@@ -55,68 +58,101 @@ export const Navbar: React.FC<NavbarProps> = ({ user, onLogout }) => {
             ☰
           </button>
 
-          {/* Desktop navigation */}
-          <div className="hidden md:flex items-center gap-6">
-            <div className="flex items-center gap-4">
-              {navigationItems.map((item) => (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-300 ${
-                    location.pathname === item.path
-                      ? 'bg-fras-gold-gradient text-white -translate-y-0.5'
-                      : 'text-white/80 hover:text-fras-gold hover:bg-white/10'
-                  }`}
-                >
-                  <i className={`fas ${item.icon}`} />
-                  <span className="text-sm">{item.name}</span>
-                </Link>
-              ))}
+          {/* Desktop user section */}
+          <div className="hidden md:flex items-center gap-3">
+            <div className="bg-white/6 text-white pr-[15px] rounded-lg font-medium">
+              {getInitials(user?.username)}
             </div>
-
-            {/* User section */}
-            <div className="flex items-center gap-3 pl-4 border-l border-fras-gold">
-              <div className="bg-white/6 text-white px-4 py-2 rounded-lg font-medium">
-                {getInitials(user?.username)}
-              </div>
-              <button
-                onClick={() => navigate('/profile')}
-                className="w-10 h-10 bg-white/6 text-fras-gold rounded-lg flex items-center justify-center hover:bg-white/20 transition-colors"
-                title="Profile"
-              >
-                <i className="fas fa-user" />
-              </button>
-              <button
-                onClick={handleLogout}
-                className="w-10 h-10 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg flex items-center justify-center hover:shadow-lg transition-all"
-                title="Logout"
-              >
-                <i className="fas fa-sign-out-alt" />
-              </button>
-            </div>
+            <button
+              onClick={() => navigate('/profile')}
+              className="w-10 h-10 bg-white/6 text-fras-gold rounded-lg flex items-center justify-center hover:bg-white/20 transition-colors"
+              title="Profile"
+            >
+              <i className="fas fa-user" />
+            </button>
+            <button
+              onClick={handleLogout}
+              className="w-10 h-10 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg flex items-center justify-center hover:shadow-lg transition-all"
+              title="Logout"
+            >
+              <i className="fas fa-sign-out-alt" />
+            </button>
           </div>
         </div>
 
         {/* Mobile navigation */}
-        {isMenuOpen && (
-          <div className="md:hidden mt-3 flex flex-col gap-2 overflow-hidden transition-all duration-300">
-            {navigationItems.map((item) => (
-              <Link
-                key={item.path}
-                to={item.path}
-                onClick={() => navigate(item.path)}
-                className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all duration-300 ${
-                  location.pathname === item.path
-                    ? 'bg-fras-gold-gradient text-white'
-                    : 'text-white bg-white/6 border-l-[3px] border-fras-gold'
-                }`}
-              >
-                <i className={`fas ${item.icon}`} />
-                {item.name}
-              </Link>
-            ))}
-          </div>
-        )}
+        <div
+          className={`md:hidden mt-3 flex flex-col gap-2 overflow-hidden transition-all duration-300 ${
+            isMenuOpen
+              ? 'max-h-96 opacity-100 translate-y-0'
+              : 'max-h-0 opacity-0 -translate-y-2'
+          }`}
+        >
+          {navigationItems.map((item) => {
+            if (!item.children) {
+              const isActive = location.pathname === item.path
+              return (
+                <Link
+                  key={item.path}
+                  to={item.path!}
+                  onClick={() => setIsMenuOpen(false)}
+                  className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all duration-300 ${
+                    isActive
+                      ? 'bg-fras-gold-gradient text-white'
+                      : 'text-white bg-white/6 border border-fras-gold'
+                  }`}
+                >
+                  <i className={`fas ${item.icon}`} />
+                  {item.name}
+                </Link>
+              )
+            }
+
+            const isOpen = openMobileGroups.has(item.name)
+            const groupActive = isChildActive(item.children)
+
+            return (
+              <div key={item.name}>
+                <button
+                  onClick={() => toggleMobileGroup(item.name)}
+                  className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all duration-300 w-full text-left ${
+                    groupActive
+                      ? 'bg-fras-gold-gradient text-white'
+                      : 'text-white bg-white/6 border border-fras-gold'
+                  }`}
+                >
+                  <i className={`fas ${item.icon}`} />
+                  <span className="flex-1">{item.name}</span>
+                  <i className={`fas fa-chevron-${isOpen ? 'down' : 'right'} text-xs`} />
+                </button>
+                <div className={`overflow-hidden transition-all duration-300 ${
+                  isOpen ? 'max-h-64 opacity-100 mt-1' : 'max-h-0 opacity-0'
+                }`}>
+                  <div className="flex flex-col gap-1 pl-8">
+                    {item.children.map((child) => {
+                      const isChildActive = location.pathname === child.path
+                      return (
+                        <Link
+                          key={child.path}
+                          to={child.path}
+                          onClick={() => setIsMenuOpen(false)}
+                          className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-300 ${
+                            isChildActive
+                              ? 'text-fras-gold bg-white/10 border-l-[3px] border-fras-gold'
+                              : 'text-white/70 hover:text-fras-gold hover:bg-white/5'
+                          }`}
+                        >
+                          <i className={`fas ${child.icon} w-4`} />
+                          {child.name}
+                        </Link>
+                      )
+                    })}
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
       </div>
     </nav>
   )

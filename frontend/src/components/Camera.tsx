@@ -16,6 +16,8 @@ export interface CameraHandle {
 
 interface CameraProps {
   onImagesChange?: (images: CapturedImage[]) => void
+  maxImages?: number
+  showPreview?: boolean
 }
 
 // Target dimensions for optimized images
@@ -24,7 +26,7 @@ const TARGET_HEIGHT = 480
 const JPEG_QUALITY = 0.75
 
 export const Camera = forwardRef<CameraHandle, CameraProps>(
-  ({ onImagesChange }, ref) => {
+  ({ onImagesChange, maxImages, showPreview = true }, ref) => {
     const videoRef = useRef<HTMLVideoElement>(null)
     const [isOpen, setIsOpen] = useState(false)
     const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user')
@@ -123,6 +125,7 @@ export const Camera = forwardRef<CameraHandle, CameraProps>(
 
     const capturePhoto = useCallback(() => {
       if (!videoRef.current) return
+      if (maxImages && images.length >= maxImages) return
 
       const video = videoRef.current
       const canvas = document.createElement('canvas')
@@ -201,7 +204,7 @@ export const Camera = forwardRef<CameraHandle, CameraProps>(
 
     return (
       <>
-        {images.length > 0 && (
+        {showPreview && images.length > 0 && (
           <div className="flex flex-wrap gap-3 mt-4">
             {images.map((image) => (
               <div key={image.id} className="relative inline-block group">
@@ -249,9 +252,10 @@ export const Camera = forwardRef<CameraHandle, CameraProps>(
                 variant="success"
                 onClick={capturePhoto}
                 type="button"
+                disabled={maxImages ? images.length >= maxImages : false}
               >
                 <i className="fas fa-camera" />
-                Capture
+                Capture{maxImages ? ` (${images.length}/${maxImages})` : ''}
               </Button>
               <Button
                 variant="danger"

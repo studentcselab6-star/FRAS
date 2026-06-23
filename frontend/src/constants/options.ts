@@ -78,9 +78,9 @@ export const sectionOptions: DropdownOption[] = [
 
 export const residenceOptions: DropdownOption[] = [
   { value: '', label: 'Select Residence' },
-  { value: 'hosteler', label: 'Hosteler' },
-  { value: 'bus', label: 'Bus' },
-  { value: 'own transport', label: 'Own Transport' },
+  { value: 'Hosteler', label: 'Hosteler' },
+  { value: 'Bus', label: 'Bus' },
+  { value: 'Own Transport', label: 'Own Transport' },
 ]
 
 export const labSectionOptions: DropdownOption[] = [

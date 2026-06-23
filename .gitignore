@@ -7,3 +7,5 @@ dist/
 package-lock.json
 frontend/package-lock.json
 venv/
+CLAUDE.md
+backend/assets/

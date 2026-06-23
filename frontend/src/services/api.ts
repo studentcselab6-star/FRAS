@@ -92,8 +92,10 @@ export const studentApi = {
     })
   },
   update: (formData: FormData) => {
-
-return api.post('/update-students', formData, {
+    for(const [key,value] of Object.entries(formData)) {
+      console.log(`${key}: ${value}`);
+    }
+    return api.post('/update-students', formData, {
       headers: { 'Content-Type': 'multipart/form-data'
       },
     })

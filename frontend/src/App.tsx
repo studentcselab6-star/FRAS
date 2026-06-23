@@ -10,6 +10,10 @@ import EditStudent from './pages/EditStudent'
 import TakeAttendance from './pages/TakeAttendance'
 import CheckAttendance from './pages/CheckAttendance'
 import Profile from './pages/Profile'
+import ManageFaculty from './pages/faculty/ManageFaculty'
+import AddFaculty from './pages/faculty/AddFaculty'
+import ManageSubjects from './pages/faculty/ManageSubjects'
+import FacultyAssignments from './pages/faculty/FacultyAssignments'
 
 // Protected Route Component
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -81,6 +85,38 @@ function App() {
             element={
               <ProtectedRoute>
                 <Profile />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="manage-faculty"
+            element={
+              <ProtectedRoute>
+                <ManageFaculty />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="add-faculty"
+            element={
+              <ProtectedRoute>
+                <AddFaculty />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="manage-subjects"
+            element={
+              <ProtectedRoute>
+                <ManageSubjects />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="faculty-assignments"
+            element={
+              <ProtectedRoute>
+                <FacultyAssignments />
               </ProtectedRoute>
             }
           />

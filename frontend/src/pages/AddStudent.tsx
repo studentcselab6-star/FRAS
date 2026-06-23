@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo } from 'react'
+import { useState, useRef } from 'react'
 import { studentApi } from '../services/api'
 import { getApiErrorMessage } from '../services/api'
 import { Button, useToast } from '../components/ui/'
@@ -14,12 +14,14 @@ import {
   residenceOptions,
 } from '../constants/options'
 
+const IMAGE_LIMIT = 1
+
 const AddStudent = () => {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const cameraRef = useRef<CameraHandle>(null)
   const toast = useToast()
   const [loading, setLoading] = useState(false)
-  const [images, setImages] = useState<CapturedImage[]>([])
+  const [image, setImage] = useState<CapturedImage | null>(null)
   const [errors, setErrors] = useState<Partial<Record<keyof StudentFormData, string>>>({})
 
   const [formData, setFormData] = useState<StudentFormData>({
@@ -40,27 +42,35 @@ const AddStudent = () => {
   })
 
   const handleImagesChange = (newImages: CapturedImage[]) => {
-    setImages(newImages)
+    setImage(newImages.length > 0 ? newImages[0] : null)
+  }
+
+  const removeImage = () => {
+    if (image?.url) {
+      try { URL.revokeObjectURL(image.url) } catch {}
+    }
+    setImage(null)
+    cameraRef.current?.clearImages()
   }
 
   const openCamera = () => {
     cameraRef.current?.open()
   }
 
-  
-const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-  const file = e.target.files?.[0]
-  if (!file) return
-
-  setImages([
-    {
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (image?.url) {
+      try { URL.revokeObjectURL(image.url) } catch {}
+    }
+    setImage({
       id: crypto.randomUUID(),
       blob: file,
       url: URL.createObjectURL(file),
-    } as CapturedImage,
-  ])
-}
-
+    } as CapturedImage)
+    // Reset file input so same file can be re-selected
+    e.target.value = ''
+  }
 
   const validateForm = (): boolean => {
     const newErrors: Partial<Record<keyof StudentFormData, string>> = {}
@@ -92,8 +102,8 @@ const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
       return
     }
 
-    if (images.length === 0) {
-      toast.warning('Please capture at least one image')
+    if (!image) {
+      toast.warning('Please add a profile photo')
       return
     }
 
@@ -105,22 +115,19 @@ const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         formDataToSend.append(key, value)
       })
 
-      images.forEach((img, index) => {
-        formDataToSend.append('images', img.blob, `photo_${index}.jpg`)
-      })
+      formDataToSend.append('image', image.blob, 'profile.jpg')
 
-      const response = await studentApi.create(formDataToSend)
+      await studentApi.create(formDataToSend)
       
       
       toast.success('Student added successfully!')
+      removeImage()
       setFormData({
         name: '', regid: '', gender: '', email: '', mobile: '', dob: '',
         programme: '', semester: '', regulation: '', batch: '',
         fatherMobile: '', lab_section: '', class_section: '', residence: '',
       })
-      setImages([])
       setErrors({})
-      cameraRef.current?.clearImages()
       
     } catch (err: any) {
       console.error('Error adding student:', err)
@@ -147,42 +154,67 @@ const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
 
       <div className="bg-white rounded-lg shadow-2xl p-8">
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Camera Section */}
+          {/* Profile Photo */}
           <div className="border-b border-gray-200 pb-6">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4">Student Photo</h3>
-            <button
-              type="button"
-              onClick={openCamera}
-              className="px-6 py-3 bg-fras-gold text-white rounded-lg hover:bg-fras-gold-dark transition-colors flex items-center gap-2"
-            >
-              <i className="fas fa-camera" />
-              Open Camera
-            </button>
-            {images.length > 0 && (
-              <p className="mt-2 text-sm text-gray-600">
-                {images.length} photo(s) captured
-              </p>
-            )}
-            <Camera ref={cameraRef} onImagesChange={handleImagesChange} />
-          </div>
-
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">Profile Photo</h3>
+            <div className="flex items-start gap-6">
+              {/* Preview */}
+              <div className="flex-shrink-0">
+                {image ? (
+                  <div className="relative group">
+                    <img
+                      src={image.url}
+                      alt="Profile"
+                      className="w-32 h-32 rounded-lg object-cover border-2 border-fras-gold shadow-md"
+                    />
+                    <button
+                      type="button"
+                      onClick={removeImage}
+                      className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 shadow opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <i className="fas fa-times text-xs" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="w-32 h-32 rounded-lg border-2 border-dashed border-gray-300 flex flex-col items-center justify-center bg-gray-50">
+                    <i className="fas fa-user text-3xl text-gray-300 mb-1" />
+                    <span className="text-xs text-gray-400">No photo</span>
+                  </div>
+                )}
+              </div>
+              {/* Actions */}
+              <div className="flex flex-col gap-3">
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={openCamera}
+                    className="px-4 py-2 bg-fras-gold text-white rounded-lg hover:bg-fras-gold-dark transition-colors flex items-center gap-2"
+                  >
+                    <i className="fas fa-camera" />
+                    Take new Photo
+                  </button>
+                  <span style={{ alignSelf: 'center' }}>OR</span>
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+                  >
+                    <i className="fas fa-upload" />
+                    Upload
+                  </button>
+                </div>
+                <p className="text-xs text-gray-500">Clear front-facing photo. JPG/PNG accepted.</p>
+              </div>
+            </div>
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*"
-              multiple={false}
+              accept="image/jpeg,image/png"
               className="hidden"
               onChange={handleFileUpload}
             />
-
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
-            >
-              <i className="fas fa-upload" />
-              Upload Photo
-            </button>
+            <Camera ref={cameraRef} onImagesChange={handleImagesChange} maxImages={IMAGE_LIMIT} showPreview={false} />
+          </div>
 
           {/* Personal Information */}
           <div className="border-b border-gray-200 pb-6">
@@ -402,14 +434,13 @@ const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
               variant="secondary"
               className="text-yellow-500"
               onClick={() => {
+                removeImage()
                 setFormData({
                   name: '', regid: '', gender: '', email: '', mobile: '', dob: '',
                   programme: '', semester: '', regulation: '', batch: '',
                   fatherMobile: '', lab_section: '', class_section: '', residence: '',
                 })
                 setErrors({})
-                setImages([])
-                cameraRef.current?.clearImages()
               }}
             >
               <i className="fas fa-times mr-2" />

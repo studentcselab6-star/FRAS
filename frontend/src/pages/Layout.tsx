@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Outlet, useLocation, useNavigate, Navigate } from 'react-router-dom'
 import { Navbar, Sidebar, ToastContainer, useToast } from '../components/ui/'
+import { navigationItems } from '../constants/navigation'
 
 const Layout = () => {
   const [toasts, setToasts] = useState<Array<{ id: string; message: string; type: 'success' | 'error' | 'info' | 'warning' }>>([])
@@ -46,13 +47,7 @@ const Layout = () => {
     navigate('/login')
   }
 
-  const sidebarItems = [
-    { path: '/dashboard', name: 'Dashboard', icon: 'fa-tachometer-alt' },
-    { path: '/students-section', name: 'View Students', icon: 'fa-users' },
-    { path: '/take-attendance', name: 'Take Attendance', icon: 'fa-check-circle' },
-    { path: '/check-attendance', name: 'Check Attendance', icon: 'fa-search' },
-    { path: '/add-student', name: 'Add Student', icon: 'fa-user-plus' },
-  ]
+  const sidebarItems = navigationItems
 
   // Show only navbar for login/register pages
   if (location.pathname === '/login' || location.pathname === '/register') {
@@ -78,7 +73,7 @@ if (
       <div className="min-h-screen">
         <Navbar user={user} onLogout={handleLogout} />
         
-        <div className="max-w-[1600px] mx-auto px-5 py-8">
+        <div className="max-w-[1500px] mx-auto px-5 py-8">
           <div className="flex flex-col md:flex-row gap-8">
             {/* Sidebar - Hidden on mobile */}
             <aside className="hidden md:block w-64 flex-shrink-0">
