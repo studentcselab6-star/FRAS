@@ -42,6 +42,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 origins = [
     "https://fras-virid.vercel.app",
+    "https://vinaykatikireddy.is-a.dev",
     "http://localhost:5173",
     "http://127.0.0.1:5173",
     "http://localhost:4173"
