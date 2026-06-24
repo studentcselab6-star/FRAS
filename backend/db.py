@@ -31,9 +31,10 @@ async def query(sql, params=None):
             rows = await conn.fetch(sql, *(params or []))
             return [dict(row) for row in rows]
     except Exception as e:
-        import traceback
+        raise
+        """import traceback
         traceback.print_exc()
-        print(e)
+        print(e)"""
 async def close_pool():
     global pool
     if pool:

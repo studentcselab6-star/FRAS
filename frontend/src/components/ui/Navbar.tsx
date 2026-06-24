@@ -51,12 +51,28 @@ export const Navbar: React.FC<NavbarProps> = ({ user, onLogout }) => {
           </div>
 
           {/* Mobile menu toggle */}
+          <div className="flex items-center gap-3">
           <button
             className="md:hidden text-fras-gold text-2xl"
             onClick={() => setIsMenuOpen(!isMenuOpen)}
           >
             ☰
           </button>
+          <button
+              onClick={() => navigate('/profile')}
+              className="md:hidden w-10 h-10 bg-white/6 text-fras-gold rounded-lg flex items-center justify-center hover:bg-white/20 transition-colors"
+              title="Profile"
+            >
+              <i className="fas fa-user" />
+            </button>
+          <button
+              onClick={handleLogout}
+              className="md:hidden w-10 h-10 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg flex items-center justify-center hover:shadow-lg transition-all"
+              title="Logout"
+            >
+              <i className="fas fa-sign-out-alt" />
+            </button>
+            </div>
 
           {/* Desktop user section */}
           <div className="hidden md:flex items-center gap-3">

@@ -12,6 +12,7 @@ import db
 import traceback
 import validators
 from fastapi.middleware.cors import CORSMiddleware
+from asyncpg.exceptions import UniqueViolationError
 
 load_dotenv()
 
@@ -191,6 +192,51 @@ async def change_password(
 
 # ============ STUDENT ENDPOINTS ============
 
+@app.get("/students/filter")
+async def filter_students(
+    programme: str = "",
+    batch: str = "",
+    section: str = "",
+    semester: str = "",
+    authorization: str = Header(...),
+):
+    """Get students filtered by programme, batch, class_section, and semester"""
+    try:
+        await get_current_user(authorization)
+        conditions = []
+        params = []
+        idx = 1
+        print("EU")
+        if programme:
+            conditions.append(f"programme = ${idx}")
+            params.append(programme)
+            idx += 1
+        if batch:
+            conditions.append(f"batch = ${idx}")
+            params.append(batch)
+            idx += 1
+        if section:
+            conditions.append(f"class_section = ${idx}")
+            params.append(section)
+            idx += 1
+        if semester:
+            conditions.append(f"semester = ${idx}")
+            params.append(semester)
+            idx += 1
+
+        where_clause = " AND ".join(conditions) if conditions else "TRUE"
+        print(f"Filtering students with conditions: {where_clause} and params: {params}")
+        students = await db.query(
+            f"SELECT * FROM students WHERE {where_clause} ORDER BY regid",
+            params
+        )
+        return await enrich_with_images(students)
+    except HTTPException:
+        raise
+    except Exception as err:
+        print(f"Filter students error: {err}\n{traceback.format_exc()}")
+        return JSONResponse(status_code=500, content={"error": "Failed to filter students"})
+
 @app.get("/students/{search}")
 async def get_students(search: str, authorization: str = Header(...)):
     """Search students by name, email, or regid"""
@@ -254,7 +300,7 @@ async def add_student(
         father_mobile = validators.validate_phone(fatherMobile, "Father's mobile")
         dob_parsed = validators.validate_dob(dob)
         gender = validators.validate_gender(gender)
-        class_section = validators.validate_in(class_section, "Class section", validators.VALID_CLASSES)
+        class_section = validators.validate_in(class_section, "Class section", validators.VALID_SECTIONS)
         lab_section = validators.validate_in(lab_section, "Lab section", validators.VALID_LAB_SECTIONS)
         programme = validators.validate_in(programme, "Programme", validators.VALID_PROGRAMMES)
         regulation = validators.validate_in(regulation, "Regulation", validators.VALID_REGULATIONS)
@@ -320,7 +366,7 @@ async def update_student(
         father_mobile = validators.validate_phone(fatherMobile, "Father's mobile")
         dob_parsed = validators.validate_dob(dob)
         gender = validators.validate_gender(gender)
-        class_section = validators.validate_in(class_section, "Class section", validators.VALID_CLASSES)
+        class_section = validators.validate_in(class_section, "Class section", validators.VALID_SECTIONS)
         lab_section = validators.validate_in(lab_section, "Lab section", validators.VALID_LAB_SECTIONS)
         programme = validators.validate_in(programme, "Programme", validators.VALID_PROGRAMMES)
         regulation = validators.validate_in(regulation, "Regulation", validators.VALID_REGULATIONS)
@@ -460,31 +506,22 @@ async def delete_student(regid: str, authorization: str = Header(...)):
 async def submit_attendance(data: dict, authorization: str = Header(...)):
     """Submit attendance for a class"""
     try:
-        await get_current_user(authorization)
+        current_user = await get_current_user(authorization)
 
         class_name = data.get("class", "").strip()
-        attendance_date = data.get("date", "").strip()
+        period = data.get("period")
         students = data.get("students", [])
 
-        if not class_name or not attendance_date or not isinstance(students, list) or not students:
-            raise HTTPException(status_code=400, detail="Missing required fields: class, date, and students")
+        if not class_name or not isinstance(students, list) or not students or period is None:
+            raise HTTPException(status_code=400, detail="Missing required fields: class, period, and students")
 
         # Validate class
-        validators.validate_in(class_name, "Class", validators.VALID_CLASSES)
+        validators.validate_attendance_class(class_name)
 
-        # Validate date
-        try:
-            date.fromisoformat(attendance_date)
-        except (ValueError, TypeError):
-            raise ValueError("Invalid date format")
-        if date.fromisoformat(attendance_date) > date.today():
-            raise ValueError("Attendance date cannot be in the future")
-
-        VALID_STATUSES = {"present", "absent"}
-
+        VALID_STATUSES = {1, 0}
         for student in students:
             regid = (student.get("regid") or "").strip()
-            status = (student.get("status") or "present").lower()
+            status = student.get("status", 1)
             if not regid:
                 raise ValueError("Each student must have a valid regid")
             if status not in VALID_STATUSES:
@@ -492,24 +529,34 @@ async def submit_attendance(data: dict, authorization: str = Header(...)):
 
             await db.query(
                 """
-                INSERT INTO attendance (regid, date, class, status, marked_by, marked_at)
-                VALUES ($1, $2, $3, $4, $5, $6)
-                ON CONFLICT (regid, date) DO UPDATE SET
-                    status = EXCLUDED.status,
-                    marked_by = EXCLUDED.marked_by,
-                    marked_at = EXCLUDED.marked_at
+                INSERT INTO attendance (regid, period, status, class, marked_by)
+                VALUES ($1, $2, $3, $4, $5)
                 """,
-                [regid, attendance_date, class_name, status, "system", datetime.utcnow()]
+                [
+                    regid,
+                    period,
+                    status,
+                    class_name,
+                    current_user
+                ],
             )
 
         return {"message": "Attendance submitted successfully", "count": len(students)}
+
+    
     except ValueError as err:
         raise HTTPException(status_code=400, detail=str(err))
+    except UniqueViolationError:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Attendance already recorded"
+        )
     except HTTPException:
         raise
     except Exception as err:
-        print(f"Submit attendance error: {err}\n{traceback.format_exc()}")
+        print(f"Submit attendance error: {err}")
         return JSONResponse(status_code=500, content={"error": "Failed to submit attendance"})
+    
 
 @app.get("/attendance/today")
 async def get_today_attendance(authorization: str = Header(...)):

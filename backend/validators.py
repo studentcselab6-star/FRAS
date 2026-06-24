@@ -11,9 +11,9 @@ VALID_LAB_SECTIONS = {"A", "B"}
 VALID_SEMESTERS = {"First Semester", "Second Semester", "Third Semester", "Fourth Semester", "Fifth Semester", "Sixth Semester", "Seventh Semester", "Eighth Semester"}
 VALID_REGULATIONS = {"R20", "R23", "R25"}
 VALID_BATCHES = {"2020-2024", "2021-2025", "2022-2026", "2023-2027", "2024-2028", "2025-2029", "2025-2028", "2026-2030"}
-VALID_PROGRAMMES = {"CSE", "ECE", "EEE", "MECH", "CE", "IT", "AI", "DS", "CSM", "CSO", "AIM"}
+VALID_PROGRAMMES = {"BCA", "BBA", "MCA", "MBA", "S&H", "CSE", "AIML", "CSEDS", "CSEAIDS", "CSECS", "CSEBS", "IT", "ECE", "EEE", "MECH", "RBT", "CIV"}
 VALID_RESIDENCES = {"Bus", "Hosteler", "Own Transport"}
-VALID_CLASSES = {"A", "B", "C", "D", "E", "F", "G", "H", "I"}
+VALID_SECTIONS = {"A", "B", "C", "D", "E", "F", "G", "H", "I"}
 
 MAX_STRING_LENGTH = 255
 MAX_IMAGE_SIZE = 5 * 1024 * 1024  # 5 MB
@@ -72,6 +72,20 @@ def validate_in(value: str, field_name: str, allowed: set, allow_empty: bool = F
     value = validate_required(value, field_name)
     if value not in allowed:
         raise ValueError(f"Invalid {field_name}: '{value}'")
+    return value
+
+
+def validate_attendance_class(value: str) -> str:
+    """Validate attendance class name in format PROGRAMME-SECTION (e.g. 'BCA-A')."""
+    value = validate_required(value, "Class")
+    parts = value.split("-")
+    if len(parts) != 2:
+        raise ValueError(f"Invalid class format '{value}'. Expected format: PROGRAMME-SECTION (e.g. BCA-A)")
+    programme, section = parts[0], parts[1]
+    if programme not in VALID_PROGRAMMES:
+        raise ValueError(f"Invalid programme in class: '{programme}'")
+    if section not in VALID_SECTIONS:
+        raise ValueError(f"Invalid section in class: '{section}'")
     return value
 
 

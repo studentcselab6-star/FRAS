@@ -43,12 +43,10 @@ CREATE INDEX IF NOT EXISTS idx_students_batch ON students(batch);
 CREATE TABLE IF NOT EXISTS attendance (
     id SERIAL PRIMARY KEY,
     regid VARCHAR(50) NOT NULL,
-    date DATE NOT NULL,
     class VARCHAR(50) NOT NULL,
-    status VARCHAR(20) NOT NULL DEFAULT 'present',
+    status INTEGER NOT NULL DEFAULT 0,
     marked_by VARCHAR(100),
     marked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(regid, date),
     FOREIGN KEY (regid) REFERENCES students(regid) ON DELETE CASCADE
 );
 

@@ -1,258 +1,395 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { studentApi, attendanceApi } from '../services/api'
-import { Button } from '../components/ui/'
-import { Camera, type CameraHandle, type CapturedImage } from '../components/Camera'
+import { Button, useToast } from '../components/ui/'
+import {
+    programmeOptions,
+    batchOptions,
+    sectionOptions,
+    semesterOptions,
+} from '../constants/options'
+import type { Student } from '../types'
 
-interface Student {
-  id: number
-  name: string
-  regid: string
-  class_section?: string
-}
+type MarkStatus = 1 | 0
 
-interface AttendanceRecord {
-  regid: string
-  status: 'pending' | 'present' | 'absent'
-  matchedImage?: string
+interface RowState {
+    regid: string
+    status: MarkStatus
 }
 
 const TakeAttendance: React.FC = () => {
-  const cameraRef = useRef<CameraHandle>(null)
-  const [selectedClass, setSelectedClass] = useState('')
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
-  const [students, setStudents] = useState<Student[]>([])
-  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([])
-  const [loading, setLoading] = useState(false)
-  const [images, setImages] = useState<CapturedImage[]>([])
-  const [submitting, setSubmitting] = useState(false)
+    const toast = useToast()
 
-  useEffect(() => {
-    if (selectedClass) {
-      loadStudentsForClass()
-    }
-  }, [selectedClass])
+    const [programme, setProgramme] = useState('')
+    const [batch, setBatch] = useState('')
+    const [section, setSection] = useState('')
+    const [semester, setSemester] = useState('')
+    const [period, setPeriod] = useState<number | null>(null)
 
-  const loadStudentsForClass = async () => {
-    setLoading(true)
-    try {
-      // Load all students - in production, filter by class_section
-      const response = await studentApi.search('')
-      const filtered = response.data.filter(
-        (s: Student) => s.class_section === selectedClass || selectedClass === ''
-      )
-      setStudents(filtered)
-      setAttendanceRecords(
-        filtered.map((s: Student) => ({
-          regid: s.regid,
-          status: 'pending',
-        }))
-      )
-    } catch (err: any) {
-      console.error('Error loading students:', err)
-    } finally {
-      setLoading(false)
-    }
-  }
+    const [students, setStudents] = useState<Student[]>([])
+    const [rows, setRows] = useState<RowState[]>([])
 
-  const handleImagesChange = (newImages: CapturedImage[]) => {
-    setImages(newImages)
-    // TODO: Implement face recognition matching here
-    // For now, this is a placeholder for future face recognition logic
-  }
+    const [loading, setLoading] = useState(false)
+    const [submitting, setSubmitting] = useState(false)
 
-  const markPresent = (regid: string, matchedImage?: string) => {
-    setAttendanceRecords(prev =>
-      prev.map(record =>
-        record.regid === regid
-          ? { ...record, status: 'present', matchedImage }
-          : record
-      )
+    const hasFilter = !!(
+        programme &&
+        batch &&
+        section &&
+        semester
     )
-  }
 
-  const handleSubmitAttendance = async () => {
-    if (!selectedClass || !selectedDate) {
-      alert('Please select class and date')
-      return
+    useEffect(() => {
+        if (!hasFilter) {
+            setStudents([])
+            return
+        }
+
+        let cancelled = false
+
+        setLoading(true)
+
+        studentApi
+            .filter({
+                programme,
+                batch,
+                section,
+                semester,
+            })
+            .then((res) => {
+                if (!cancelled) {
+                    setStudents(res.data)
+                }
+            })
+            .catch(() => {
+                if (!cancelled) {
+                    toast.error('Failed to load students')
+                    setStudents([])
+                }
+            })
+            .finally(() => {
+                if (!cancelled) {
+                    setLoading(false)
+                }
+            })
+        return () => {cancelled = true}
+    }, [
+        programme,
+        batch,
+        section,
+        semester,
+        hasFilter
+    ])
+
+    useEffect(() => {
+        setRows(
+            students.map((s) => ({
+                regid: s.regid,
+                status: 1,
+            }))
+        )}, [students])
+
+    const rowMap = useMemo(() => {
+        return new Map(
+            rows.map((r) => [r.regid, r])
+        )}, [rows])
+
+    const presentCount = useMemo(() => rows.filter((r) => r.status === 1).length, [rows])
+
+    const absentCount = rows.length - presentCount
+
+    const toggleStatus = (regid: string) => {
+        setRows((prev) => prev.map((r) => r.regid === regid ? {...r, status: r.status === 1 ? 0 : 1} : r))
     }
 
-    const presentStudents = attendanceRecords.filter(r => r.status === 'present')
-    if (presentStudents.length === 0) {
-      alert('Please mark at least one student as present')
-      return
+    const toggleAll = (status: MarkStatus) => {
+        setRows((prev) => prev.map((r) => ({...r, status})))
     }
 
-    setSubmitting(true)
-    try {
-      await attendanceApi.submit({
-        class: selectedClass,
-        date: selectedDate,
-        students: presentStudents,
-      })
-      alert('Attendance submitted successfully!')
-      // Reset
-      setAttendanceRecords([])
-      setImages([])
-      cameraRef.current?.clearImages()
-    } catch (err: any) {
-      alert('Failed to submit attendance: ' + err.message)
-    } finally {
-      setSubmitting(false)
+    const handleSubmit = async () => {
+        if (submitting) return
+        if (!hasFilter) { toast.warning('Please select all filter options'); return }
+        if (period === null) { toast.warning('Please select a period'); return }
+
+        setSubmitting(true)
+
+        try {
+            await attendanceApi.submit({
+                class: `${programme}-${section}`,
+                period,
+                students: rows.map((r) => ({
+                    regid: r.regid,
+                    status: r.status,
+                })),
+            })
+
+            toast.success('Attendance submitted successfully')
+
+            setRows((prev) => prev.map((r) => ({ ...r, status: 1 })))
+        } catch (err: any) {
+            toast.error(err?.response?.data?.detail || 'Failed to submit attendance')
+        } finally {
+            setSubmitting(false)
+        }
     }
-  }
 
-  const classOptions = [
-    { value: '', label: 'Select Class' },
-    { value: 'A', label: 'Class A' },
-    { value: 'B', label: 'Class B' },
-    { value: 'C', label: 'Class C' },
-    { value: 'D', label: 'Class D' },
-    { value: 'E', label: 'Class E' },
-    { value: 'F', label: 'Class F' },
-    { value: 'G', label: 'Class G' },
-    { value: 'H', label: 'Class H' },
-    { value: 'I', label: 'Class I' },
-  ]
+    return (
+        <div className="fade-in-up">
+            <h1 className="text-4xl font-bold text-white mb-8 flex items-center gap-3">
+                <i className="fas fa-check-circle text-fras-gold" />
+                Take Attendance
+            </h1>
 
-  return (
-    <div className="fade-in-up">
-      <h1 className="text-4xl font-bold text-white mb-8 flex items-center gap-3">
-        <i className="fas fa-check-circle text-fras-gold" />
-        Take Attendance
-      </h1>
+            <div className="bg-white rounded-lg shadow-2xl p-8">
+                {/* Filters */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6 pb-6 border-b border-gray-200">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Programme
+                        </label>
+                        <select
+                            value={programme}
+                            onChange={(e) =>
+                                setProgramme(e.target.value)
+                            }
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-fras-gold"
+                        >
+                            {programmeOptions.map((o) => (
+                                <option key={o.value} value={o.value}>
+                                    {o.label}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
 
-      <div className="bg-white rounded-lg shadow-2xl p-8">
-        {/* Class and Date Selection */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Class</label>
-            <select
-              value={selectedClass}
-              onChange={(e) => setSelectedClass(e.target.value)}
-              className="form-select"
-            >
-              {classOptions.map(opt => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
-          </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Batch
+                        </label>
+                        <select
+                            value={batch}
+                            onChange={(e) =>
+                                setBatch(e.target.value)
+                            }
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-fras-gold"
+                        >
+                            {batchOptions.map((o) => (
+                                <option key={o.value} value={o.value}>
+                                    {o.label}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Date</label>
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className="form-input"
-            />
-          </div>
-        </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Section
+                        </label>
+                        <select
+                            value={section}
+                            onChange={(e) =>
+                                setSection(e.target.value)
+                            }
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-fras-gold"
+                        >
+                            {sectionOptions.map((o) => (
+                                <option key={o.value} value={o.value}>
+                                    {o.label}
+                                </option>
+                            ))}
+                        </select>
+                     </div>
 
-        {/* Camera Section */}
-        <div className="mb-6">
-          <Button
-            type="button"
-            variant="primary"
-            onClick={() => cameraRef.current?.open()}
-          >
-            <i className="fas fa-camera" />
-            Open Camera for Face Recognition
-          </Button>
-          <Camera ref={cameraRef} onImagesChange={handleImagesChange} />
-        </div>
+                     <div>
+                         <label className="block text-sm font-medium text-gray-700 mb-1">
+                             Semester
+                         </label>
+                        <select
+                            value={semester}
+                            onChange={(e) =>
+                                setSemester(e.target.value)
+                            }
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-fras-gold"
+                        >
+                            {semesterOptions.map((o) => (
+                                <option key={o.value} value={o.value}>
+                                    {o.label}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                </div>
 
-        {/* Loading State */}
-        {loading && (
-          <div className="text-center py-8">
-            <i className="fas fa-spinner fa-spin text-4xl text-fras-gold" />
-            <p className="text-gray-600 mt-4">Loading students...</p>
-          </div>
-        )}
+                {/* Period */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6 pb-6 border-b border-gray-200">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Period
+                    </label>
 
-        {/* Attendance Table */}
-        {selectedClass && !loading && students.length > 0 && (
-          <div className="table-container overflow-x-auto">
-            <table className="table-base min-w-[800px]">
-              <thead>
-                <tr className="bg-gray-50">
-                  <th className="table-header">Reg ID</th>
-                  <th className="table-header">Student Name</th>
-                  <th className="table-header">Status</th>
-                  <th className="table-header">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {attendanceRecords.map((record) => {
-                  const student = students.find(s => s.regid === record.regid)
-                  return (
-                    <tr key={record.regid} className="border-b border-gray-100 hover:bg-fras-gold/10">
-                      <td className="table-cell">{record.regid}</td>
-                      <td className="table-cell font-medium">{student?.name || 'N/A'}</td>
-                      <td className="table-cell">
-                        {record.status === 'pending' && (
-                          <span className="text-orange-500 font-semibold">Pending</span>
-                        )}
-                        {record.status === 'present' && (
-                          <span className="text-green-500 font-semibold">Present</span>
-                        )}
-                        {record.status === 'absent' && (
-                          <span className="text-red-500 font-semibold">Absent</span>
-                        )}
-                      </td>
-                      <td className="table-cell">
-                        {record.status === 'pending' ? (
-                          <Button
-                            variant="success"
-                            size="sm"
-                            onClick={() => markPresent(record.regid)}
-                          >
-                            <i className="fas fa-check" />
-                            Present
-                          </Button>
+                    <div className="flex gap-2 flex-wrap">
+                        {[1, 2, 3, 4, 5, 6, 7].map((p) => (
+                            <button
+                                key={p}
+                                type="button"
+                                onClick={() => setPeriod(p === period ? null : p) }
+                                className={`px-3 py-1 rounded-full text-sm font-medium ${period === p
+                                        ? 'bg-fras-blue text-white'
+                                        : 'bg-gray-200 text-gray-700'
+                                    }`}
+                            > {p}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
+                {loading && (
+                    <div className="text-center py-12">
+                        <i className="fas fa-spinner fa-spin text-4xl text-fras-gold" />
+                        <p className="text-gray-600 mt-4">
+                            Loading students...
+                        </p>
+                    </div>
+                )}
+
+                {!loading && hasFilter && (
+                    <>
+                        <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+                            <div className="flex items-center gap-4 text-sm">
+                                <span>
+                                    Total: <strong>{students.length}</strong>
+                                </span>
+                                <span className="text-green-600">
+                                    Present:{' '}
+                                    <strong>{presentCount}</strong>
+                                </span>
+                                <span className="text-red-600">
+                                    Absent:{' '}
+                                    <strong>{absentCount}</strong>
+                                </span>
+                            </div>
+                            <div className="flex gap-2 flex-wrap">
+                                <Button
+                                    variant="success"
+                                    size="sm"
+                                    onClick={() => toggleAll(1)}
+                                >
+                                    Mark All Present
+                                </Button>
+                                <Button
+                                    variant="danger"
+                                    size="sm"
+                                    onClick={() => toggleAll(0)}
+                                >
+                                    Mark All Absent
+                                </Button>
+                            </div>
+                        </div>
+                        {students.length === 0 ? (
+                            <div className="text-center py-12">
+                                <i className="fas fa-users text-6xl text-gray-300 mb-4" />
+                                <p className="text-gray-500">
+                                    No students found for selected filters
+                                </p>
+                            </div>
                         ) : (
-                          <i className="fas fa-check-circle text-green-500 text-xl" />
+                            <div className="overflow-x-auto">
+                                <table className="w-full">
+                                    <thead>
+                                        <tr className="bg-gray-50 border-b border-gray-200">
+                                            <th className="px-4 py-3 text-left">
+                                                ID
+                                            </th>
+                                            <th className="px-4 py-3 text-left">
+                                                Reg ID
+                                            </th>
+                                            <th className="px-4 py-3 text-left">
+                                                Name
+                                            </th>
+                                            <th className="px-4 py-3 text-left">
+                                                Status
+                                            </th>
+                                        </tr>
+                                    </thead>
+
+                                    <tbody className="divide-y divide-gray-100">
+                                        {students.map(
+                                            (student, i) => {
+                                                const row = rowMap.get(student.regid)
+
+                                                const status = row?.status ?? 1
+
+                                                const statusLabel =
+                                                    status === 1
+                                                        ? {
+                                                            text: 'Present',
+                                                            color:'bg-green-600',
+                                                        }
+                                                        : {
+                                                            text: 'Absent',
+                                                            color: 'bg-red-500',
+                                                        }
+
+                                                return (
+                                                    <tr
+                                                        key={student.regid}
+                                                        className="hover:bg-fras-gold/10 transition-colors"
+                                                    >
+                                                        <td className="px-4 py-3">{i + 1}</td>
+                                                        <td className="px-4 py-3 font-mono">
+                                                            {student.regid}
+                                                        </td>
+                                                        <td className="px-4 py-3 font-medium">
+                                                            {student.name}
+                                                        </td>
+                                                        <td className="px-4 py-3">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => toggleStatus(student.regid)}
+                                                                className={`px-3 py-1 rounded-full font-semibold text-white ${statusLabel.color}`}
+                                                            >
+                                                                {statusLabel.text}
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                )
+                                            }
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
                         )}
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
 
-        {/* Submit Button */}
-        {attendanceRecords.length > 0 && (
-          <div className="mt-6 flex justify-end">
-            <Button
-              variant="success"
-              onClick={handleSubmitAttendance}
-              isLoading={submitting}
-              disabled={attendanceRecords.filter(r => r.status === 'present').length === 0}
-            >
-              <i className="fas fa-save" />
-              Submit Attendance
-            </Button>
-          </div>
-        )}
+                        {students.length > 0 && (
+                            <div className="mt-6 flex justify-end">
+                                <Button
+                                    variant="success"
+                                    onClick={handleSubmit}
+                                    isLoading={submitting}
+                                    disabled={
+                                        submitting ||
+                                        rows.length === 0
+                                    }
+                                >
+                                    <i className="fas fa-save" />
+                                    Submit Attendance
+                                </Button>
+                            </div>
+                        )}
+                    </>
+                )}
 
-        {/* Empty State */}
-        {selectedClass && !loading && students.length === 0 && (
-          <div className="text-center py-12">
-            <i className="fas fa-users text-6xl text-gray-300 mb-4" />
-            <p className="text-gray-500">No students found for this class</p>
-          </div>
-        )}
-
-        {!selectedClass && (
-          <div className="text-center py-12 text-gray-500">
-            <i className="fas fa-arrow-up text-4xl mb-4 opacity-50" />
-            <p>Select a class to begin taking attendance</p>
-          </div>
-        )}
-      </div>
-    </div>
-  )
+                {!loading && !hasFilter && (
+                    <div className="text-center py-12 text-gray-500">
+                        <i className="fas fa-arrow-up text-4xl mb-4 opacity-50" />
+                        <p>
+                            Select programme, batch,
+                            section, and semester to load
+                            students
+                        </p>
+                    </div>
+                )}
+            </div>
+        </div>
+    )
 }
 
 export default TakeAttendance

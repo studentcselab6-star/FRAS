@@ -85,6 +85,8 @@ export const studentApi = {
   search: (query: string) => {
     return api.get(`/students/${encodeURIComponent(query)}`)
   },
+  filter: (params: { programme?: string; batch?: string; section?: string; semester?: string }) =>
+    api.get('/students/filter', { params }),
   create: (formData: FormData) => {
     return api.post('/students', formData, {
       headers: { 'Content-Type': 'multipart/form-data'
@@ -105,7 +107,7 @@ export const studentApi = {
 
 // Attendance APIs
 export const attendanceApi = {
-  submit: (data: { class: string; date: string; students: any[] }) =>
+  submit: (data: { class: string; period: number; students: { regid: string; status: number }[] }) =>
     api.post('/attendance', data),
   getByStudent: (studentId: string, fromDate: string, toDate: string) =>
     api.get(`/attendance/student/${studentId}`, {
