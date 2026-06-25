@@ -610,6 +610,58 @@ async def get_student_attendance(
         print(f"Student attendance error: {err}\n{traceback.format_exc()}")
         return JSONResponse(status_code=500, content={"error": "Failed to load attendance"})
 
+
+@app.get("/attendance/summary/{regid}")
+async def get_attendance_summary(
+    regid: str,
+    authorization: str = Header(...)
+):
+    """Get attendance summary for a specific student"""
+    try:
+        await get_current_user(authorization)
+        regid = validators.validate_regid(regid)
+
+        # Verify student exists
+        student = await db.query(
+            "SELECT regid FROM students WHERE regid = $1",
+            [regid]
+        )
+        if not student:
+            raise HTTPException(status_code=404, detail="Student not found")
+
+        # Get total working periods
+        total_result = await db.query(
+            "SELECT COUNT(*) as count FROM attendance WHERE regid = $1",
+            [regid]
+        )
+        total_working_periods = int(total_result[0]["count"]) if total_result else 0
+
+        # Get attended periods
+        attended_result = await db.query(
+            "SELECT COUNT(*) as count FROM attendance WHERE regid = $1 AND status = 1",
+            [regid]
+        )
+        attended_periods = int(attended_result[0]["count"]) if attended_result else 0
+
+        # Calculate attendance percentage
+        if total_working_periods == 0:
+            attendance_percentage = 0.0
+        else:
+            attendance_percentage = round((attended_periods / total_working_periods) * 100, 2)
+
+        return {
+            "total_working_periods": total_working_periods,
+            "attended_periods": attended_periods,
+            "attendance_percentage": attendance_percentage
+        }
+    except ValueError as err:
+        raise HTTPException(status_code=400, detail=str(err))
+    except HTTPException:
+        raise
+    except Exception as err:
+        print(f"Attendance summary error: {err}\n{traceback.format_exc()}")
+        return JSONResponse(status_code=500, content={"error": "Failed to load attendance summary"})
+
 # ============ DASHBOARD ENDPOINTS ============
 
 @app.get("/api/dashboard")

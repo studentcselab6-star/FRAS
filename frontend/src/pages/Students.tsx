@@ -1,6 +1,6 @@
 import { useState, memo, FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { studentApi } from '../services/api'
+import { studentApi, attendanceApi } from '../services/api'
 import { Button, Input, Modal } from '../components/ui/'
 import { Student } from '../types/'
 
@@ -11,6 +11,11 @@ const Students = memo(() => {
   const [searchQuery, setSearchQuery] = useState('')
   const [deleteCandidate, setDeleteCandidate] = useState<string | null>(null)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
+  const [isAttendanceModalOpen, setIsAttendanceModalOpen] = useState(false)
+  const [attendanceData, setAttendanceData] = useState<{ totalPeriods: number; attended: number } | null>(null)
+  const [attendanceLoading, setAttendanceLoading] = useState(false)
+  const [attendanceError, setAttendanceError] = useState<string | null>(null)
+  const [selectedStudent, setSelectedStudent] = useState<string | null>(null)
   const navigate = useNavigate();
 
   const loadStudents = async (query: string = '') => {
@@ -47,6 +52,26 @@ const Students = memo(() => {
       setDeleteCandidate(null)
     } catch (err: any) {
       alert('Failed to delete student: ' + err.message)
+    }
+  }
+
+  const handleViewAttendance = (regid: string) => {
+    setSelectedStudent(regid)
+    setIsAttendanceModalOpen(true)
+    fetchAttendanceData(regid)
+  }
+
+  const fetchAttendanceData = async (regid: string) => {
+    setAttendanceLoading(true)
+    setAttendanceError(null)
+    try {
+      const response = await attendanceApi.getAttendanceSummary(regid)
+      setAttendanceData(response.data)
+    } catch (err: any) {
+      setAttendanceError('Failed to load attendance data')
+      console.error(err)
+    } finally {
+      setAttendanceLoading(false)
     }
   }
 
@@ -161,13 +186,20 @@ const Students = memo(() => {
                       >
                         <i className="fas fa-edit" />
                       </button>
-                      <button
-                        onClick={() => handleDelete(student.regid)}
-                        className="w-9 h-9 bg-red-500 text-white rounded-lg flex items-center justify-center hover:bg-red-600 transition-colors"
-                        title="Delete"
-                      >
-                        <i className="fas fa-trash" />
-                      </button>
+                       <button
+                         onClick={() => handleDelete(student.regid)}
+                         className="w-9 h-9 bg-red-500 text-white rounded-lg flex items-center justify-center hover:bg-red-600 transition-colors"
+                         title="Delete"
+                       >
+                         <i className="fas fa-trash" />
+                       </button>
+                       <button
+                         onClick={() => handleViewAttendance(student.regid)}
+                         className="w-9 h-9 bg-green-500 text-white rounded-lg flex items-center justify-center hover:bg-green-600 transition-colors"
+                         title="View Attendance"
+                       >
+                         <i className="fas fa-eye" />
+                       </button>
                     </div>
                   </td>
                 </tr>
@@ -211,6 +243,70 @@ const Students = memo(() => {
         <p className="text-gray-600">
           Are you sure you want to delete student with Reg ID: <strong>{deleteCandidate}</strong>?
         </p>
+      </Modal>
+
+      {/* Attendance Modal */}
+      <Modal
+        isOpen={isAttendanceModalOpen}
+        onClose={() => setIsAttendanceModalOpen(false)}
+        title=
+          <>
+            <i className="fas fa-calendar-check text-green-500" />
+            <span>Attendance Summary</span>
+          </>
+      >
+        {attendanceLoading && (
+          <div className="text-center py-12">
+            <i className="fas fa-spinner fa-spin text-4xl text-fras-gold" />
+            <p className="text-gray-600 mt-4">Loading attendance data...</p>
+          </div>
+        )}
+        
+        {attendanceError && (
+          <div className="bg-red-500/10 border border-red-500 rounded-lg p-6 text-center">
+            <p className="text-red-500">{attendanceError}</p>
+          </div>
+        )}
+        
+        {!attendanceLoading && !attendanceError && attendanceData && (
+          <div className="overflow-x-auto">
+            <table className="min-w-full bg-white">
+              <thead>
+                <tr className="bg-gray-50">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Periods</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Attended</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Attendance %</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="border-t border-gray-200">
+                  <td className="px-6 py-4 whitespace-nowrap">{attendanceData.totalPeriods}</td>
+                  <td className="px-6 py-4 whitespace-nowrap">{attendanceData.attended}</td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    {((attendanceData.attended / attendanceData.totalPeriods) * 100).toFixed(2)}%
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        )}
+        
+        {!attendanceLoading && !attendanceError && !attendanceData && (
+          <div className="text-center py-12">
+            <i className="fas fa-exclamation-circle text-4xl text-gray-300 mb-4" />
+            <p className="text-gray-500">No attendance data available</p>
+          </div>
+        )}
+        
+        <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-200 bg-gray-50">
+          <Button
+            variant="secondary"
+            onClick={() => setIsAttendanceModalOpen(false)}
+            type="button"
+          >
+            Close
+          </Button>
+        </div>
       </Modal>
 
       </div>

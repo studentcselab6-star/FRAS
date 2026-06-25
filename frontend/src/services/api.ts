@@ -114,6 +114,7 @@ export const attendanceApi = {
       params: { fromDate, toDate },
     }),
   getToday: () => api.get('/attendance/today'),
+  getAttendanceSummary: (regid: string) => api.get(`/attendance/summary/${encodeURIComponent(regid)}`),
 }
 
 // Dashboard APIs
