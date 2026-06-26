@@ -45,6 +45,8 @@ CREATE TABLE IF NOT EXISTS attendance (
     regid VARCHAR(50) NOT NULL,
     class VARCHAR(50) NOT NULL,
     status INTEGER NOT NULL DEFAULT 0,
+    period INT,
+    date date DATE NOT NULL DEFAULT CURRENT_DATE;
     marked_by VARCHAR(100),
     marked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (regid) REFERENCES students(regid) ON DELETE CASCADE

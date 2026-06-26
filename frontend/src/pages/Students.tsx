@@ -123,12 +123,13 @@ const Students = memo(() => {
       )}
 
       {!loading && !error && students.length > 0 && (
-        <div className="table-container overflow-x-auto">
-          <table className="table-base min-w-[1400px]">
+        <div className="table-container overflow-x-auto [transform:rotateX(180deg)]">
+          <table className="table-base min-w-[1600px] [transform:rotateX(180deg)]">
             <thead>
               <tr className="bg-gray-50">
                 <th className="table-header">Id</th>
                 <th className="table-header">Image</th>
+                <th className="table-header">Actions</th>
                 <th className="table-header">Name</th>
                 <th className="table-header">Reg ID</th>
                 <th className="table-header">Gender</th>
@@ -143,7 +144,6 @@ const Students = memo(() => {
                 <th className="table-header">Lab Section</th>
                 <th className="table-header">Class Section</th>
                 <th className="table-header">Residence</th>
-                <th className="table-header">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -163,6 +163,31 @@ const Students = memo(() => {
                       </div>
                     )}
                   </td>
+                  <td className="table-cell">
+                    <div className="flex gap-2">
+                       <button
+                         onClick={() => handleViewAttendance(student.regid)}
+                         className="w-9 h-9 bg-green-500 text-white rounded-lg flex items-center justify-center hover:bg-green-600 transition-colors"
+                         title="View Attendance"
+                       >
+                         <i className="fas fa-eye" />
+                       </button>
+                      <button
+                        onClick={() => navigate("/edit-student", {state:{student}}) }
+                        className="w-9 h-9 bg-blue-500 text-white rounded-lg flex items-center justify-center hover:bg-blue-600 transition-colors"
+                        title="Edit Student"
+                      >
+                        <i className="fas fa-edit" />
+                      </button>
+                       <button
+                         onClick={() => handleDelete(student.regid)}
+                         className="w-9 h-9 bg-red-500 text-white rounded-lg flex items-center justify-center hover:bg-red-600 transition-colors"
+                         title="Delete Student"
+                       >
+                         <i className="fas fa-trash" />
+                       </button>
+                    </div>
+                  </td>
                   <td className="table-cell font-medium">{student.name}</td>
                   <td className="table-cell">{student.regid}</td>
                   <td className="table-cell">{student.gender}</td>
@@ -177,31 +202,6 @@ const Students = memo(() => {
                   <td className="table-cell">{student.lab_section}</td>
                   <td className="table-cell">{student.class_section}</td>
                   <td className="table-cell capitalize">{student.residence}</td>
-                  <td className="table-cell">
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => navigate("/edit-student", {state:{student}}) }
-                        className="w-9 h-9 bg-blue-500 text-white rounded-lg flex items-center justify-center hover:bg-blue-600 transition-colors"
-                        title="Edit"
-                      >
-                        <i className="fas fa-edit" />
-                      </button>
-                       <button
-                         onClick={() => handleDelete(student.regid)}
-                         className="w-9 h-9 bg-red-500 text-white rounded-lg flex items-center justify-center hover:bg-red-600 transition-colors"
-                         title="Delete"
-                       >
-                         <i className="fas fa-trash" />
-                       </button>
-                       <button
-                         onClick={() => handleViewAttendance(student.regid)}
-                         className="w-9 h-9 bg-green-500 text-white rounded-lg flex items-center justify-center hover:bg-green-600 transition-colors"
-                         title="View Attendance"
-                       >
-                         <i className="fas fa-eye" />
-                       </button>
-                    </div>
-                  </td>
                 </tr>
               ))}
             </tbody>
@@ -297,16 +297,6 @@ const Students = memo(() => {
             <p className="text-gray-500">No attendance data available</p>
           </div>
         )}
-        
-        <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-200 bg-gray-50">
-          <Button
-            variant="secondary"
-            onClick={() => setIsAttendanceModalOpen(false)}
-            type="button"
-          >
-            Close
-          </Button>
-        </div>
       </Modal>
 
       </div>

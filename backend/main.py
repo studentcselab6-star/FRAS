@@ -672,7 +672,7 @@ async def get_dashboard_stats(authorization: str = Header(...)):
     """Get dashboard statistics"""
     try:
         await get_current_user(authorization)
-        today = date.today().isoformat()
+        today = date.today()
         
         # Get total students
         total_result = await db.query("SELECT COUNT(*) as count FROM students")
@@ -680,17 +680,17 @@ async def get_dashboard_stats(authorization: str = Header(...)):
         
         # Get today's present count
         present_result = await db.query(
-            "SELECT COUNT(DISTINCT regid) as count FROM attendance WHERE date = $1 AND status = 'present'",
+            "SELECT COUNT(DISTINCT regid) as count FROM attendance WHERE date = $1 AND status = '1'",
             [today]
         )
         today_present = int(present_result[0]["count"]) if present_result else 0
         
         # Get attendance rate (last 7 days)
-        week_ago = (date.today() - timedelta(days=7)).isoformat()
+        week_ago = date.today() - timedelta(days=7)
         rate_result = await db.query(
             """
             SELECT 
-                COUNT(*) FILTER (WHERE status = 'present') as present,
+                COUNT(*) FILTER (WHERE status = '1') as present,
                 COUNT(*) as total
             FROM attendance
             WHERE date >= $1
@@ -722,4 +722,4 @@ async def get_dashboard_stats(authorization: str = Header(...)):
         raise HTTPException(status_code=500, detail="Failed to load dashboard")
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=PORT)
+    uvicorn.run(app, host="0.0.0.0", port=PORT, reload=True)

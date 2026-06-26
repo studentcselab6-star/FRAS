@@ -21,10 +21,10 @@ export const Navbar: React.FC<NavbarProps> = ({ user, onLogout }) => {
 
   const toggleMobileGroup = (name: string) => {
     setOpenMobileGroups(prev => {
-      const next = new Set(prev)
-      if (next.has(name)) next.delete(name)
-      else next.add(name)
-      return next
+      if (prev.has(name)) {
+        return new Set();
+      }
+      return new Set([name]);
     })
   }
 
@@ -100,7 +100,7 @@ export const Navbar: React.FC<NavbarProps> = ({ user, onLogout }) => {
         <div
           className={`md:hidden mt-3 flex flex-col gap-2 overflow-hidden transition-all duration-300 ${
             isMenuOpen
-              ? 'max-h-96 opacity-100 translate-y-0'
+              ? 'max-h-150 opacity-100 translate-y-0'
               : 'max-h-0 opacity-0 -translate-y-2'
           }`}
         >

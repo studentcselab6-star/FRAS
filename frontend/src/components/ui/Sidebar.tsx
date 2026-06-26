@@ -30,10 +30,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ items }) => {
 
   const toggleGroup = (name: string) => {
     setOpenGroups(prev => {
-      const next = new Set(prev)
-      if (next.has(name)) next.delete(name)
-      else next.add(name)
-      return next
+      if (prev.has(name)) {
+        return new Set();
+      }
+      return new Set([name]);
     })
   }
 
