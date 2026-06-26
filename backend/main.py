@@ -654,6 +654,9 @@ async def get_attendance_summary(
             "attended_periods": attended_periods,
             "attendance_percentage": attendance_percentage
         }
+    except Exception as err:
+        print(f"Attendance summary error: {err}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail="Failed to load attendance summary")
     except ValueError as err:
         raise HTTPException(status_code=400, detail=str(err))
     except HTTPException:
@@ -716,7 +719,7 @@ async def get_dashboard_stats(authorization: str = Header(...)):
         raise
     except Exception as err:
         print(f"Dashboard error: {err}\n{traceback.format_exc()}")
-        return JSONResponse(status_code=500, content={"error": "Failed to load dashboard"})
+        raise HTTPException(status_code=500, detail="Failed to load dashboard")
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=PORT)
