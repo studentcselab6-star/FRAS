@@ -57,37 +57,11 @@ export interface StudentFormData {
   residence: string
 }
 
-export interface StudentUpdateData extends StudentFormData {
-  oldregid: string
-}
-
-export interface CameraProps {
-  onImagesChange?: (images: CapturedImage[]) => void
-  maxImages?: number
-}
-
 // Attendance Types
 export interface AttendanceRecord {
-  regid: string
-  status: 'pending' | 'present' | 'absent'
-  matchedImage?: string
-  time?: string
-}
-
-export interface AttendanceSubmission {
-  class: string
-  date: string
-  students: Array<{
-    regid: string
-    status: string
-    matchedImage?: string
-  }>
-}
-
-export interface AttendanceEntry {
-  date: string
-  status: 'Present' | 'Absent'
-  time?: string
+  total_working_periods: number
+  attended_periods: number
+  attendance_percentage: number
 }
 
 export interface DashboardStats {
@@ -95,13 +69,6 @@ export interface DashboardStats {
   totalStudents: number
   attendanceRate: number
   classesToday: number
-}
-
-export interface ApiResponse<T = any> {
-  data: T
-  status: number
-  statusText: string
-  headers: any
 }
 
 export interface ApiError {
@@ -127,40 +94,6 @@ export interface CameraHandle {
   close: () => void
   getImages: () => CapturedImage[]
   clearImages: () => void
-}
-
-export interface ButtonProps {
-  children: React.ReactNode
-  variant?: 'primary' | 'success' | 'danger' | 'secondary'
-  size?: 'sm' | 'md' | 'lg'
-  isLoading?: boolean
-  onClick?: () => void
-  type?: 'button' | 'submit' | 'reset'
-  className?: string
-  disabled?: boolean
-}
-
-export interface InputProps {
-  label: string
-  type: string
-  value: string
-  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void
-  name?: string
-  placeholder?: string
-  required?: boolean
-  pattern?: string
-  className?: string
-  error?: string
-  helperText?: string
-}
-
-export interface ModalProps {
-  isOpen: boolean
-  onClose: () => void
-  title: React.ReactNode
-  children: React.ReactNode
-  footer?: React.ReactNode
-  size?: 'sm' | 'md' | 'lg' | 'xl'
 }
 
 export interface DropdownOption {

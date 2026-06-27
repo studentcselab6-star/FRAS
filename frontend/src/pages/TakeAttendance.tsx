@@ -1,6 +1,7 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { studentApi, attendanceApi } from '../services/api'
 import { Button, useToast } from '../components/ui/'
+import { Camera, CameraHandle } from '../components/Camera'
 import {
     programmeOptions,
     batchOptions,
@@ -30,6 +31,9 @@ const TakeAttendance: React.FC = () => {
 
     const [loading, setLoading] = useState(false)
     const [submitting, setSubmitting] = useState(false)
+    const [isRecognizing, setIsRecognizing] = useState(false)
+    const [recognizedStudents, setRecognizedStudents] = useState<Array<{regid: string; name: string; confidence: number}>>([])
+    const cameraRef = useRef<CameraHandle>(null)
 
     const hasFilter = !!(
         programme &&
@@ -104,6 +108,45 @@ const TakeAttendance: React.FC = () => {
     const toggleAll = (status: MarkStatus) => {
         setRows((prev) => prev.map((r) => ({...r, status})))
     }
+    
+    const handleTakePhotos = () => {
+        cameraRef.current?.open()
+    }
+    
+    const handleRecognize = async () => {
+        if (!hasFilter) {
+            toast.warning('Please select all filter options')
+            return
+        }
+        
+        const images = cameraRef.current?.getImages()
+        if (!images || images.length === 0) {
+            toast.warning('Please capture at least one photo')
+            return
+        }
+        
+        setIsRecognizing(true)
+        try {
+            const response = await attendanceApi.recognize(
+                images.map(img => img.blob),
+                `${programme}-${section}`
+            )
+            
+            setRecognizedStudents(response.data.recognized_students)
+            
+            // Update attendance status for recognized students
+            setRows(prev => prev.map(row => {
+                const recognized = response.data.recognized_students.find(s => s.regid === row.regid)
+                return recognized ? { ...row, status: 1 } : row
+            }))
+            
+            toast.success(`Recognized ${response.data.recognized_students.length} student(s)`)
+        } catch (err: any) {
+            toast.error(err?.response?.data?.detail || 'Face recognition failed')
+        } finally {
+            setIsRecognizing(false)
+        }
+    }
 
     const handleSubmit = async () => {
         if (submitting) return
@@ -138,6 +181,8 @@ const TakeAttendance: React.FC = () => {
                 <i className="fas fa-check-circle text-fras-gold" />
                 Take Attendance
             </h1>
+
+            <Camera ref={cameraRef} maxImages={10} />
 
             <div className="bg-white rounded-lg shadow-2xl p-8">
                 {/* Filters */}
@@ -305,6 +350,9 @@ const TakeAttendance: React.FC = () => {
                                                 Name
                                             </th>
                                             <th className="px-4 py-3 text-left">
+                                                Recognition
+                                            </th>
+                                            <th className="px-4 py-3 text-left">
                                                 Status
                                             </th>
                                         </tr>
@@ -337,18 +385,30 @@ const TakeAttendance: React.FC = () => {
                                                         <td className="px-4 py-3 font-mono">
                                                             {student.regid}
                                                         </td>
-                                                        <td className="px-4 py-3 font-medium">
-                                                            {student.name}
-                                                        </td>
-                                                        <td className="px-4 py-3">
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => toggleStatus(student.regid)}
-                                                                className={`px-3 py-1 rounded-full font-semibold text-white ${statusLabel.color}`}
-                                                            >
-                                                                {statusLabel.text}
-                                                            </button>
-                                                        </td>
+                                                <td className="px-4 py-3 font-medium">
+                                                    {student.name}
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    {recognizedStudents.find(s => s.regid === student.regid) ? (
+                                                        <div className="flex items-center gap-2">
+                                                            <i className="fas fa-check-circle text-green-500" />
+                                                            <span className="text-sm text-gray-600">
+                                                                {Math.round(recognizedStudents.find(s => s.regid === student.regid)?.confidence * 100)}%
+                                                            </span>
+                                                        </div>
+                                                    ) : (
+                                                        <i className="fas fa-question-circle text-gray-400" />
+                                                    )}
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => toggleStatus(student.regid)}
+                                                        className={`px-3 py-1 rounded-full font-semibold text-white ${statusLabel.color}`}
+                                                    >
+                                                        {statusLabel.text}
+                                                    </button>
+                                                </td>
                                                     </tr>
                                                 )
                                             }
@@ -359,7 +419,28 @@ const TakeAttendance: React.FC = () => {
                         )}
 
                         {students.length > 0 && (
-                            <div className="mt-6 flex justify-end">
+                            <div className="mt-6 flex flex-wrap gap-4 justify-between items-center">
+                                <div className="flex gap-2">
+                                    <Button
+                                        variant="primary"
+                                        onClick={handleTakePhotos}
+                                        disabled={!hasFilter}
+                                    >
+                                        <i className="fas fa-camera" />
+                                        Take Photos
+                                    </Button>
+                                    <Button
+                                        variant="secondary"
+                                        className="text-cyan"
+                                        onClick={handleRecognize}
+                                        isLoading={isRecognizing}
+                                        disabled={!hasFilter}
+                                    >
+                                        <i className="fas fa-robot" />
+                                        {isRecognizing ? 'Recognizing...' : 'Recognize Faces'}
+                                    </Button>
+                                </div>
+                                
                                 <Button
                                     variant="success"
                                     onClick={handleSubmit}

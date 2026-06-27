@@ -66,6 +66,7 @@ export const authApi = {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     })
   },
+
    register: (username: string, email: string, password: string ) => {
     const formData = new URLSearchParams()
     formData.append('username', username)
@@ -76,50 +77,42 @@ export const authApi = {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     });
   },
-  changePassword: (currentPassword: string, newPassword: string) =>
-    api.post('/change-password', { currentPassword, newPassword }),
+
+  changePassword: (currentPassword: string, newPassword: string) => api.post('/change-password', { currentPassword, newPassword }),
 }
 
 // Student APIs
 export const studentApi = {
-  search: (query: string) => {
-    return api.get(`/students/${encodeURIComponent(query)}`)
-  },
-  filter: (params: { programme?: string; batch?: string; section?: string; semester?: string }) =>
-    api.get('/students/filter', { params }),
-  create: (formData: FormData) => {
-    return api.post('/students', formData, {
-      headers: { 'Content-Type': 'multipart/form-data'
-      },
-    })
-  },
-  update: (formData: FormData) => {
-    for(const [key,value] of Object.entries(formData)) {
-      console.log(`${key}: ${value}`);
-    }
-    return api.post('/update-students', formData, {
-      headers: { 'Content-Type': 'multipart/form-data'
-      },
-    })
-  },
+  search: (query: string) => api.get(`/students/${encodeURIComponent(query)}`),
+
+  filter: (params: { programme?: string; batch?: string; section?: string; semester?: string }) => api.get('/students/filter', { params }),
+
+  create: (formData: FormData) => api.post('/students', formData, { headers: { 'Content-Type': 'multipart/form-data'} }),
+  
+  update: (formData: FormData) => api.post('/update-students', formData, {headers: { 'Content-Type': 'multipart/form-data'} }),
+
   delete: (regid: string) => api.delete(`/students/${encodeURIComponent(regid)}`),
 }
 
 // Attendance APIs
 export const attendanceApi = {
-  submit: (data: { class: string; period: number; students: { regid: string; status: number }[] }) =>
-    api.post('/attendance', data),
-  getByStudent: (studentId: string, fromDate: string, toDate: string) =>
-    api.get(`/attendance/student/${studentId}`, {
-      params: { fromDate, toDate },
-    }),
-  getToday: () => api.get('/attendance/today'),
+  submit: (data: { class: string; period: number; students: { regid: string; status: number }[] }) => api.post('/attendance', data),
+
   getAttendanceSummary: (regid: string) => api.get(`/attendance/summary/${encodeURIComponent(regid)}`),
+
+  recognize: (images: Blob[], classInfo: string) => {
+    const formData = new FormData()
+    images.forEach((img) => formData.append("images", img))
+    formData.append("class_info", classInfo)
+    return api.post('/attendance/recognize', formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    })
+  },
 }
 
 // Dashboard APIs
 export const dashboardApi = {
-  getStats: () => { return api.get("/api/dashboard") }
+  getStats: () => api.get("/api/dashboard")
 }
 
 export default api

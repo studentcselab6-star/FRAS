@@ -13,6 +13,7 @@ import traceback
 import validators
 from fastapi.middleware.cors import CORSMiddleware
 from asyncpg.exceptions import UniqueViolationError
+from pgvector.asyncpg import register_vector
 
 load_dotenv()
 
@@ -22,7 +23,7 @@ SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 JWT_SECRET = os.getenv("JWT_SECRET")
 JWT_ALGORITHM = "HS256"
-JWT_EXPIRY_HOURS = 24
+JWT_EXPIRY_HOURS = 1
 BUCKET = "student_images"
 
 # Initialize Supabase
@@ -35,8 +36,17 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Initialize the database pool
     await db.init_pool()
-    print(f"Server running on http://0.0.0.0:{PORT}")
+    
+    # Ensure the pool is initialized
+    if db.pool is None:
+        raise RuntimeError("Failed to initialize database pool")
+    
+    # Register pgvector on a single connection from the pool
+    async with db.pool.acquire() as conn:
+        await register_vector(conn)
+    
     yield
     await db.close_pool()
 
@@ -44,6 +54,7 @@ app = FastAPI(lifespan=lifespan)
 origins = [
     "https://fras-virid.vercel.app",
     "https://vinaykatikireddy.is-a.dev",
+    "https://fras.vinaykatikireddy.is-a.dev",
     "http://localhost:5173",
     "http://127.0.0.1:5173",
     "http://localhost:4173"
@@ -58,12 +69,13 @@ app.add_middleware(
 )
 
 # Middleware for logging
-@app.middleware("http")
-async def log_requests(request: Request, call_next):
-    print(f"Incoming: {request.method} {request.url.path}")
-    return await call_next(request)
+# @app.middleware("http")
+# async def log_requests(request: Request, call_next):
+#     print(f"Incoming: {request.method} {request.url.path}")
+#     return await call_next(request)
 
-# Dependency: Get current user from JWT
+
+# ============ HELPER FUNCTIONS ============
 async def get_current_user(authorization: str):
     if not authorization:
         raise HTTPException(status_code=401, detail="Missing authorization header")
@@ -83,6 +95,80 @@ async def get_current_user(authorization: str):
     except Exception:
         raise HTTPException(status_code=401, detail="Invalid token format")
 
+async def enrich_with_images(students):
+    if not supabase:
+        return students
+    
+    for student in students:
+        try:
+            filename = f"{student['batch']}/{student['programme']}-{student['class_section']}/{student['regid']}.jpg"
+            signed = supabase.storage.from_(BUCKET).create_signed_url(filename, 360)
+            student["image"] = signed["signedURL"]
+        except Exception as e:
+            student["image"] = None
+    return students
+
+async def process_student_image(image: UploadFile, regid: str, batch: str, programme: str, class_section: str) -> bool:
+    """
+    Process a student image: detect face, generate embedding, and store in database.
+    Returns True if successful, False otherwise.
+    """
+    import image
+    from pgvector.asyncpg import register_vector
+    
+    try:
+        # Save the uploaded image temporarily
+        temp_path = image.filename
+        with open(temp_path, "wb") as f:
+            f.write(await image.read())
+        
+        # Validate exactly one face is detected
+        if not image.validate_face_count(temp_path, 1):
+            os.remove(temp_path)
+            return False
+        
+        # Generate face embedding
+        embedding = image.generate_face_embedding(temp_path)
+        if not embedding:
+            os.remove(temp_path)
+            return False
+        
+        # Update face_embeddings table
+        await db.query(
+            """
+            INSERT INTO face_embeddings (regid, embedding)
+            VALUES ($1, $2)
+            ON CONFLICT (regid) DO UPDATE SET embedding = EXCLUDED.embedding, updated_at = CURRENT_TIMESTAMP
+            """,
+            [regid, embedding]
+        )
+        
+        # Update students table
+        await db.query(
+            """
+            UPDATE students SET face_detected = TRUE, embedding_generated = TRUE
+            WHERE regid = $1
+            """,
+            [regid]
+        )
+        
+        # Upload to Supabase
+        if supabase:
+            filename = f"{batch}/{programme}-{class_section}/{regid}.jpg"
+            with open(temp_path, "rb") as f:
+                supabase.storage.from_(BUCKET).upload(filename, f.read())
+        
+        # Clean up
+        os.remove(temp_path)
+        return True
+        
+    except Exception as e:
+        print(f"Error processing student image: {e}")
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+        return False
+
+# ============ ROUTES ============
 @app.get("/")
 def home():
     return {"message": "API is running..."}
@@ -91,22 +177,19 @@ def home():
 
 @app.post("/auth/login")
 async def login(username: str = Form(...), password: str = Form(...)):
-    """User login - returns JWT token"""
     try:
         if not username or not password:
             raise HTTPException(status_code=401, detail="Username and password are required")
 
-        users = await db.query(
-            "SELECT * FROM users WHERE username = $1",
+        user = await db.query(
+            "SELECT * FROM logins WHERE username = $1",
             [username]
         )
 
-        if not users or len(users) == 0:
+        if not user or len(user) == 0:
             raise HTTPException(status_code=401, detail="Invalid credentials")
 
-        user = users[0]
-
-        if not pwd_context.verify(password, user["password"]):
+        if not pwd_context.verify(password, user[0]["password"]):
             raise HTTPException(status_code=401, detail="Invalid credentials")
 
         # Create JWT token
@@ -130,10 +213,10 @@ async def register(username: str = Form(...), email: str = Form(...), password: 
     try:
         username = validators.validate_username(username)
         email = validators.validate_email(email)
-        validators.validate_password(password)
+        password = validators.validate_password(password)
 
         existing = await db.query(
-            "SELECT * FROM users WHERE username = $1 OR email = $2",
+            "SELECT * FROM logins WHERE username = $1 OR email = $2",
             [username, email]
         )
         if existing and len(existing) > 0:
@@ -141,8 +224,8 @@ async def register(username: str = Form(...), email: str = Form(...), password: 
 
         hashed_password = pwd_context.hash(password)
         await db.query(
-            "INSERT INTO users (username, email, password, created_at) VALUES ($1, $2, $3, $4)",
-            [username, email, hashed_password, datetime.utcnow()]
+            "INSERT INTO logins (username, email, password) VALUES ($1, $2, $3)",
+            [username, email, hashed_password]
         )
         return {"message": "User registered successfully", "username": username}
     except ValueError as err:
@@ -154,30 +237,24 @@ async def register(username: str = Form(...), email: str = Form(...), password: 
         return JSONResponse(status_code=500, content={"error": "Registration failed"})
 
 @app.post("/change-password")
-async def change_password(
-    current_password: str = Form(...),
-    new_password: str = Form(...),
-    authorization: str = Header(...)
-):
-    """Change password for authenticated user"""
+async def change_password(current_password: str = Form(...), new_password: str = Form(...), authorization: str = Header(...)):
     try:
         current_user = await get_current_user(authorization)
 
         if not current_password:
             raise ValueError("Current password is required")
-        validators.validate_password(new_password)
+        new_password = validators.validate_password(new_password)
 
-        users = await db.query("SELECT * FROM users WHERE username = $1", [current_user])
-        if not users:
+        user = await db.query("SELECT * FROM logins WHERE username = $1", [current_user])
+        if not user:
             raise HTTPException(status_code=404, detail="User not found")
-
-        user = users[0]
-        if not pwd_context.verify(current_password, user["password"]):
+        
+        if not pwd_context.verify(current_password, user[0]["password"]):
             raise HTTPException(status_code=400, detail="Current password is incorrect")
 
         hashed_password = pwd_context.hash(new_password)
         await db.query(
-            "UPDATE users SET password = $1 WHERE username = $2",
+            "UPDATE logins SET password = $1 WHERE username = $2",
             [hashed_password, current_user]
         )
 
@@ -191,83 +268,6 @@ async def change_password(
         return JSONResponse(status_code=500, content={"error": "Password change failed"})
 
 # ============ STUDENT ENDPOINTS ============
-
-@app.get("/students/filter")
-async def filter_students(
-    programme: str = "",
-    batch: str = "",
-    section: str = "",
-    semester: str = "",
-    authorization: str = Header(...),
-):
-    """Get students filtered by programme, batch, class_section, and semester"""
-    try:
-        await get_current_user(authorization)
-        conditions = []
-        params = []
-        idx = 1
-        print("EU")
-        if programme:
-            conditions.append(f"programme = ${idx}")
-            params.append(programme)
-            idx += 1
-        if batch:
-            conditions.append(f"batch = ${idx}")
-            params.append(batch)
-            idx += 1
-        if section:
-            conditions.append(f"class_section = ${idx}")
-            params.append(section)
-            idx += 1
-        if semester:
-            conditions.append(f"semester = ${idx}")
-            params.append(semester)
-            idx += 1
-
-        where_clause = " AND ".join(conditions) if conditions else "TRUE"
-        print(f"Filtering students with conditions: {where_clause} and params: {params}")
-        students = await db.query(
-            f"SELECT * FROM students WHERE {where_clause} ORDER BY regid",
-            params
-        )
-        return await enrich_with_images(students)
-    except HTTPException:
-        raise
-    except Exception as err:
-        print(f"Filter students error: {err}\n{traceback.format_exc()}")
-        return JSONResponse(status_code=500, content={"error": "Failed to filter students"})
-
-@app.get("/students/{search}")
-async def get_students(search: str, authorization: str = Header(...)):
-    """Search students by name, email, or regid"""
-    try:
-        await get_current_user(authorization)
-        # Strip LIKE wildcards to prevent forced full-table scans
-        search = search.replace("%", "").replace("_", "").strip()
-        students = await db.query(
-            "SELECT * FROM students WHERE name ILIKE $1 OR email ILIKE $1 OR regid ILIKE $1",
-            [f"%{search}%"]
-        )
-        return await enrich_with_images(students)
-    except HTTPException:
-        raise
-    except Exception as err:
-        print(f"Search error: {err}\n{traceback.format_exc()}")
-        return JSONResponse(status_code=500, content={"error": "Search failed"})
-
-async def enrich_with_images(students):
-    """Add signed image URLs to student records"""
-    if not supabase:
-        return students
-    
-    for student in students:
-        try:
-            filename = f"{student['batch']}/{student['programme']}-{student['class_section']}/{student['regid']}.jpg"
-            signed = supabase.storage.from_(BUCKET).create_signed_url(filename, 360)
-            student["image"] = signed["signedURL"]
-        except Exception as e:
-            student["image"] = None
-    return students
 
 @app.post("/students")
 async def add_student(
@@ -286,27 +286,26 @@ async def add_student(
     residence: str = Form(...),
     semester: str = Form(...),
     image: UploadFile = File(None),
-    authorization: str = Header(...)
+    authorization: str = Header(...),
 ):
-    """Add new student with optional profile photo"""
     try:
         await get_current_user(authorization)
-        print(residence)
-        # Validate every field — frontend checks are UX only
+
+        # Validations
         name = validators.validate_name(name)
         regid = validators.validate_regid(regid)
         email = validators.validate_email(email)
-        mobile = validators.validate_phone(mobile, "Mobile")
-        father_mobile = validators.validate_phone(fatherMobile, "Father's mobile")
+        mobile = validators.validate_phone(mobile)
+        father_mobile = validators.validate_phone(fatherMobile)
         dob_parsed = validators.validate_dob(dob)
         gender = validators.validate_gender(gender)
-        class_section = validators.validate_in(class_section, "Class section", validators.VALID_SECTIONS)
-        lab_section = validators.validate_in(lab_section, "Lab section", validators.VALID_LAB_SECTIONS)
-        programme = validators.validate_in(programme, "Programme", validators.VALID_PROGRAMMES)
-        regulation = validators.validate_in(regulation, "Regulation", validators.VALID_REGULATIONS)
-        batch = validators.validate_in(batch, "Batch", validators.VALID_BATCHES)
-        residence = validators.validate_in(residence, "Residence", validators.VALID_RESIDENCES)
-        semester = validators.validate_in(semester, "Semester", validators.VALID_SEMESTERS)
+        class_section = validators.validate(class_section, "Class section", validators.VALID_SECTIONS)
+        lab_section = validators.validate(lab_section, "Lab section", validators.VALID_LAB_SECTIONS)
+        programme = validators.validate(programme, "Programme", validators.VALID_PROGRAMMES)
+        regulation = validators.validate(regulation, "Regulation", validators.VALID_REGULATIONS)
+        batch = validators.validate(batch, "Batch", validators.VALID_BATCHES)
+        residence = validators.validate(residence, "Residence", validators.VALID_RESIDENCES)
+        semester = validators.validate(semester, "Semester", validators.VALID_SEMESTERS)
         validators.validate_image(image)
 
         await db.query(
@@ -321,10 +320,10 @@ async def add_student(
              gender, lab_section, programme, regulation, batch, residence, semester]
         )
 
-        if image and supabase:
-            contents = await image.read()
-            filename = f"{batch}/{programme}-{class_section}/{regid}.jpg"
-            supabase.storage.from_(BUCKET).upload(filename, contents)
+        if image:
+            success = await process_student_image(image, regid, batch, programme, class_section)
+            if not success:
+                raise HTTPException(status_code=400, detail="Face detection failed. Please upload a clear image with exactly one face.")
 
     except ValueError as err:
         raise HTTPException(status_code=400, detail=str(err))
@@ -333,6 +332,62 @@ async def add_student(
     except Exception as err:
         print(f"Add student error: {err}\n{traceback.format_exc()}")
         return JSONResponse(status_code=500, content={"error": "Failed to add student"})
+
+@app.get("/students/filter")
+async def filter_students(programme: str = "", batch: str = "", section: str = "", semester: str = "", authorization: str = Header(...)):
+    try:
+        print("HIHIHI")
+        await get_current_user(authorization)
+        conditions = []
+        params = []
+        idx = 1
+
+        if programme:
+            conditions.append(f"programme = ${idx}")
+            params.append(programme)
+            idx += 1
+        if batch:
+            conditions.append(f"batch = ${idx}")
+            params.append(batch)
+            idx += 1
+        if section:
+            conditions.append(f"class_section = ${idx}")
+            params.append(section)
+            idx += 1
+        if semester:
+            conditions.append(f"semester = ${idx}")
+            params.append(semester)
+            idx += 1
+
+        where_clause = " AND ".join(conditions) if conditions else "FALSE"
+
+        students = await db.query(
+            f"SELECT * FROM students WHERE {where_clause} ORDER BY regid",
+            params
+        )
+        return await enrich_with_images(students)
+    except HTTPException:
+        raise
+    except Exception as err:
+        print(f"Filter students error: {err}\n{traceback.format_exc()}")
+        return JSONResponse(status_code=500, content={"error": "Failed to filter students"})
+
+@app.get("/students/{search}")
+async def search_students(search: str, authorization: str = Header(...)):
+    try:
+        await get_current_user(authorization)
+
+        search = search.replace("%", "").replace("_", "").strip()
+        students = await db.query(
+            "SELECT * FROM students WHERE name ILIKE $1 OR email ILIKE $1 OR regid ILIKE $1",
+            [f"%{search}%"]
+        )
+        return await enrich_with_images(students)
+    except HTTPException:
+        raise
+    except Exception as err:
+        print(f"Search error: {err}\n{traceback.format_exc()}")
+        return JSONResponse(status_code=500, content={"error": "Search failed"})
 
 @app.post("/update-students")
 async def update_student(
@@ -352,27 +407,26 @@ async def update_student(
     semester: str = Form(...),
     oldregid: str = Form(...),
     image: UploadFile = File(None),
-    authorization: str = Header(...)
+    authorization: str = Header(...),
 ):
-    """Update existing student"""
     try:
         await get_current_user(authorization)
 
-        # Validate every field
+        # Validations
         name = validators.validate_name(name)
         regid = validators.validate_regid(regid)
         email = validators.validate_email(email)
-        mobile = validators.validate_phone(mobile, "Mobile")
-        father_mobile = validators.validate_phone(fatherMobile, "Father's mobile")
+        mobile = validators.validate_phone(mobile)
+        father_mobile = validators.validate_phone(fatherMobile)
         dob_parsed = validators.validate_dob(dob)
         gender = validators.validate_gender(gender)
-        class_section = validators.validate_in(class_section, "Class section", validators.VALID_SECTIONS)
-        lab_section = validators.validate_in(lab_section, "Lab section", validators.VALID_LAB_SECTIONS)
-        programme = validators.validate_in(programme, "Programme", validators.VALID_PROGRAMMES)
-        regulation = validators.validate_in(regulation, "Regulation", validators.VALID_REGULATIONS)
-        batch = validators.validate_in(batch, "Batch", validators.VALID_BATCHES)
-        residence = validators.validate_in(residence, "Residence", validators.VALID_RESIDENCES)
-        semester = validators.validate_in(semester, "Semester", validators.VALID_SEMESTERS)
+        class_section = validators.validate(class_section, "Class section", validators.VALID_SECTIONS)
+        lab_section = validators.validate(lab_section, "Lab section", validators.VALID_LAB_SECTIONS)
+        programme = validators.validate(programme, "Programme", validators.VALID_PROGRAMMES)
+        regulation = validators.validate(regulation, "Regulation", validators.VALID_REGULATIONS)
+        batch = validators.validate(batch, "Batch", validators.VALID_BATCHES)
+        residence = validators.validate(residence, "Residence", validators.VALID_RESIDENCES)
+        semester = validators.validate(semester, "Semester", validators.VALID_SEMESTERS)
         oldregid_upper = oldregid.strip().upper()
         if not oldregid_upper:
             raise ValueError("Old Reg ID is required")
@@ -420,11 +474,10 @@ async def update_student(
              semester, oldregid_upper]
         )
 
-        # ponytail: handle image rename/move when regid changes
         if supabase:
             new_filename = f"{batch}/{programme}-{class_section}/{regid}.jpg"
             old_filename = f"{batch}/{programme}-{class_section}/{oldregid_upper}.jpg"
-            regid_changed = oldregid_upper != regid
+            is_regid_changed = oldregid_upper != regid
 
             if image:
                 contents = await image.read()
@@ -434,13 +487,27 @@ async def update_student(
                 except Exception:
                     pass
                 supabase.storage.from_(BUCKET).upload(new_filename, contents)
+                
+                # Process face embedding
+                temp_path = f"temp_{image.filename}"
+                with open(temp_path, "wb") as f:
+                    f.write(contents)
+                
+                success = await process_student_image(image, regid, batch, programme, class_section)
+                os.remove(temp_path)
+                
+                if not success:
+                    raise HTTPException(status_code=400, detail="Face detection failed. Please upload a clear image with exactly one face.")
+                
                 # Clean up old file if regid changed
-                if regid_changed:
+                if is_regid_changed:
                     try:
                         supabase.storage.from_(BUCKET).remove([old_filename])
+                        # Delete old embedding
+                        await db.query("DELETE FROM face_embeddings WHERE regid = $1", [oldregid_upper])
                     except Exception:
                         pass
-            elif regid_changed:
+            elif is_regid_changed:
                 # No new image but regid changed — move old file to new path
                 try:
                     old_data = supabase.storage.from_(BUCKET).download(old_filename)
@@ -450,6 +517,12 @@ async def update_student(
                         pass
                     supabase.storage.from_(BUCKET).upload(new_filename, old_data)
                     supabase.storage.from_(BUCKET).remove([old_filename])
+                    
+                    # Update embedding regid
+                    await db.query(
+                        "UPDATE face_embeddings SET regid = $1 WHERE regid = $2",
+                        [regid, oldregid_upper]
+                    )
                 except Exception:
                     pass  # old image didn't exist, nothing to move
 
@@ -467,7 +540,7 @@ async def delete_student(regid: str, authorization: str = Header(...)):
     try:
         await get_current_user(authorization)
 
-        students = await db.query(
+        student = await db.query(
             """
             SELECT batch, programme, class_section, regid
             FROM students
@@ -476,10 +549,10 @@ async def delete_student(regid: str, authorization: str = Header(...)):
             [regid]
         )
 
-        if not students:
+        if not student:
             raise HTTPException(status_code=404, detail="Student not found")
 
-        student = students[0]
+        student = student[0]
 
         if supabase:
             filename = (f"{student['batch']}/{student['programme']}-{student['class_section']}/{student['regid']}.jpg")
@@ -489,6 +562,13 @@ async def delete_student(regid: str, authorization: str = Header(...)):
             except Exception as e:
                 print(f"Storage delete failed: {e}")
 
+        # Delete face embedding
+        await db.query(
+            "DELETE FROM face_embeddings WHERE regid = $1",
+            [regid]
+        )
+        
+        # Delete student
         await db.query(
             "DELETE FROM students WHERE regid = $1",
             [regid]
@@ -502,9 +582,9 @@ async def delete_student(regid: str, authorization: str = Header(...)):
         print(f"Delete student error: {err}\n{traceback.format_exc()}")
         return JSONResponse(status_code=500, content={"error": "Failed to delete student"})
 
+# ============ ATTENDANCE ENDPOINTS ============
 @app.post("/attendance")
 async def submit_attendance(data: dict, authorization: str = Header(...)):
-    """Submit attendance for a class"""
     try:
         current_user = await get_current_user(authorization)
 
@@ -515,7 +595,6 @@ async def submit_attendance(data: dict, authorization: str = Header(...)):
         if not class_name or not isinstance(students, list) or not students or period is None:
             raise HTTPException(status_code=400, detail="Missing required fields: class, period, and students")
 
-        # Validate class
         validators.validate_attendance_class(class_name)
 
         VALID_STATUSES = {1, 0}
@@ -531,6 +610,7 @@ async def submit_attendance(data: dict, authorization: str = Header(...)):
                 """
                 INSERT INTO attendance (regid, period, status, class, marked_by)
                 VALUES ($1, $2, $3, $4, $5)
+                ON CONFLICT (regid, date, period) DO UPDATE SET status = EXCLUDED.status
                 """,
                 [
                     regid,
@@ -543,80 +623,99 @@ async def submit_attendance(data: dict, authorization: str = Header(...)):
 
         return {"message": "Attendance submitted successfully", "count": len(students)}
 
-    
     except ValueError as err:
         raise HTTPException(status_code=400, detail=str(err))
     except UniqueViolationError:
-        raise HTTPException(
-            status_code=409,
-            detail=f"Attendance already recorded"
-        )
+        raise HTTPException(status_code=409, detail=f"Attendance already recorded")
     except HTTPException:
         raise
     except Exception as err:
         print(f"Submit attendance error: {err}")
         return JSONResponse(status_code=500, content={"error": "Failed to submit attendance"})
-    
 
-@app.get("/attendance/today")
-async def get_today_attendance(authorization: str = Header(...)):
-    """Get today's attendance records"""
-    try:
-        await get_current_user(authorization)
-        today = date.today().isoformat()
-        records = await db.query(
-            "SELECT * FROM attendance WHERE date = $1",
-            [today]
-        )
-        return records
-    except HTTPException:
-        raise
-    except Exception as err:
-        print(f"Today attendance error: {err}\n{traceback.format_exc()}")
-        return JSONResponse(status_code=500, content={"error": "Failed to load attendance"})
-
-@app.get("/attendance/student/{student_id}")
-async def get_student_attendance(
-    student_id: str,
-    fromDate: str,
-    toDate: str,
+@app.post("/attendance/recognize")
+async def recognize_attendance(
+    images: list[UploadFile] = File(...),
+    class_info: str = Form(...),
     authorization: str = Header(...)
 ):
-    """Get attendance records for a specific student"""
+    """
+    Recognize students from uploaded images and return their regids.
+    Accepts 1-10 images and returns a list of recognized students.
+    """
+    from pgvector.asyncpg import register_vector
+    import image
+    print("before try")
     try:
         await get_current_user(authorization)
-        # Validate date params
-        for label, val in [("fromDate", fromDate), ("toDate", toDate)]:
-            try:
-                date.fromisoformat(val)
-            except (ValueError, TypeError):
-                raise ValueError(f"Invalid date format for {label}")
-        records = await db.query(
-            """
-            SELECT date, status,
-                   TO_CHAR(marked_at, 'HH12:MI AM') as time
-            FROM attendance
-            WHERE regid = $1 AND date BETWEEN $2 AND $3
-            ORDER BY date DESC
-            """,
-            [student_id, fromDate, toDate]
-        )
-        return records
-    except ValueError as err:
-        raise HTTPException(status_code=400, detail=str(err))
+        if not images or len(images) > 10:
+            raise HTTPException(status_code=400, detail="Please upload 1-10 images")
+            
+        recognized_students = []
+        print("before for loop")
+        for img in images:
+            # Save the uploaded image temporarily
+            temp_path = f"temp_{img.filename}"
+            with open(temp_path, "wb") as f:
+                f.write(await img.read())
+            
+            # Detect faces in the image
+            faces = image.detect_faces(temp_path)
+            if not faces:
+                os.remove(temp_path)
+                continue
+                
+            # Process each face
+            for face in faces:
+                print("for in faces")
+                # Extract face
+                face_img = image.extract_face(temp_path, face)
+                if not face_img:
+                    continue
+                    
+                # Save face to temp file
+                face_path = image.generate_temp_path()
+                face_img.save(face_path)
+                
+                # Generate embedding
+                embedding = image.generate_face_embedding(face_path)
+                if not embedding:
+                    os.remove(face_path)
+                    continue
+                    
+                # Match against database
+                regid = await image.match_face(embedding)
+                
+                if regid and regid not in [s["regid"] for s in recognized_students]:
+                    # Get student details
+                    print("if regid")
+                    student = await db.query(
+                        "SELECT regid, name FROM students WHERE regid = $1",
+                        [regid]
+                    )
+                    if student:
+                        recognized_students.append({
+                            "regid": regid,
+                            "name": student[0]["name"],
+                            "confidence": 0.95  # Placeholder for actual confidence
+                        })
+                
+                # Clean up
+                os.remove(face_path)
+            
+            # Clean up
+            os.remove(temp_path)
+        
+        return {"recognized_students": recognized_students}
+        
     except HTTPException:
         raise
     except Exception as err:
-        print(f"Student attendance error: {err}\n{traceback.format_exc()}")
-        return JSONResponse(status_code=500, content={"error": "Failed to load attendance"})
-
+        print(f"Face recognition error: {err}\n{traceback.format_exc()}")
+        return JSONResponse(status_code=500, content={"error": "Face recognition failed"})
 
 @app.get("/attendance/summary/{regid}")
-async def get_attendance_summary(
-    regid: str,
-    authorization: str = Header(...)
-):
-    """Get attendance summary for a specific student"""
+async def get_attendance_summary(regid: str, authorization: str = Header(...)):
     try:
         await get_current_user(authorization)
         regid = validators.validate_regid(regid)
@@ -654,9 +753,6 @@ async def get_attendance_summary(
             "attended_periods": attended_periods,
             "attendance_percentage": attendance_percentage
         }
-    except Exception as err:
-        print(f"Attendance summary error: {err}\n{traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail="Failed to load attendance summary")
     except ValueError as err:
         raise HTTPException(status_code=400, detail=str(err))
     except HTTPException:
@@ -674,31 +770,30 @@ async def get_dashboard_stats(authorization: str = Header(...)):
         await get_current_user(authorization)
         today = date.today()
         
-        # Get total students
+        # Get total no.of students
         total_result = await db.query("SELECT COUNT(*) as count FROM students")
         total_students = int(total_result[0]["count"]) if total_result else 0
         
-        # Get today's present count
+        # Get today's present students count
         present_result = await db.query(
-            "SELECT COUNT(DISTINCT regid) as count FROM attendance WHERE date = $1 AND status = '1'",
+            "SELECT COUNT(DISTINCT regid) as count FROM attendance WHERE date = $1 AND status = 1",
             [today]
         )
         today_present = int(present_result[0]["count"]) if present_result else 0
         
-        # Get attendance rate (last 7 days)
-        week_ago = date.today() - timedelta(days=7)
+        # Get today attendance rate
         rate_result = await db.query(
             """
             SELECT 
-                COUNT(*) FILTER (WHERE status = '1') as present,
+                COUNT(*) FILTER (WHERE status = 1) as present,
                 COUNT(*) as total
             FROM attendance
-            WHERE date >= $1
+            WHERE date = $1
             """,
-            [week_ago]
+            [today]
         )
         if rate_result and rate_result[0]["total"] > 0:
-            attendance_rate = round((rate_result[0]["present"] / rate_result[0]["total"]) * 100, 1)
+            attendance_rate = round((rate_result[0]["present"] / rate_result[0]["total"]) * 100, 2)
         else:
             attendance_rate = 0.0
         
@@ -722,4 +817,4 @@ async def get_dashboard_stats(authorization: str = Header(...)):
         raise HTTPException(status_code=500, detail="Failed to load dashboard")
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=PORT, reload=True)
+    uvicorn.run(app, host="0.0.0.0", port=PORT)

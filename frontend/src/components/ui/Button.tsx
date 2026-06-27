@@ -22,7 +22,7 @@ export const Button: React.FC<ButtonProps> = ({
     primary: 'bg-fras-blue text-white px-6 py-3',
     success: 'bg-fras-gold-gradient text-white px-6 py-3',
     danger: 'bg-gradient-to-r from-red-500 to-red-600 text-white px-6 py-3',
-    secondary: 'bg-white/10 text-white border border-fras-gold px-6 py-3 hover:bg-white/20'
+    secondary: 'bg-white/10 border border-fras-gold px-6 py-3 hover:bg-white/20'
   }
   
   const sizeStyles = {

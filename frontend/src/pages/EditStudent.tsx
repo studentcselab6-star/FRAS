@@ -2,6 +2,10 @@ import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { studentApi, getApiErrorMessage } from '../services/api'
 import { Button, useToast } from '../components/ui/'
+import { CameraHandle, CapturedImage } from '../types'
+import { Camera } from '../components/Camera'
+import { Student, StudentFormData } from '../types'
+import { isValidPhone, isValidEmail } from '../utils/validators'
 import {
   programmeOptions,
   semesterOptions,
@@ -10,12 +14,8 @@ import {
   sectionOptions,
   residenceOptions,
 } from '../constants/options'
-import { CameraHandle, CapturedImage } from '../types'
-import { Camera } from '../components/Camera'
-import { Student, StudentFormData } from '../types'
-import { isValidPhone, isValidEmail } from '../utils/validators'
 
-const IMAGE_LIMIT = 1 // ponytail: profile picture — single image; attendance uses 10
+const IMAGE_LIMIT = 1
 
 const EditStudent: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null)

@@ -2,7 +2,7 @@ import { useState, memo, FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { studentApi, attendanceApi } from '../services/api'
 import { Button, Input, Modal } from '../components/ui/'
-import { Student } from '../types/'
+import { Student, AttendanceRecord } from '../types/'
 
 const Students = memo(() => {
   const [students, setStudents] = useState<Student[]>([])
@@ -12,10 +12,9 @@ const Students = memo(() => {
   const [deleteCandidate, setDeleteCandidate] = useState<string | null>(null)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [isAttendanceModalOpen, setIsAttendanceModalOpen] = useState(false)
-  const [attendanceData, setAttendanceData] = useState<{ totalPeriods: number; attended: number } | null>(null)
+  const [attendanceData, setAttendanceData] = useState<AttendanceRecord>(null)
   const [attendanceLoading, setAttendanceLoading] = useState(false)
   const [attendanceError, setAttendanceError] = useState<string | null>(null)
-  const [selectedStudent, setSelectedStudent] = useState<string | null>(null)
   const navigate = useNavigate();
 
   const loadStudents = async (query: string = '') => {
@@ -56,7 +55,6 @@ const Students = memo(() => {
   }
 
   const handleViewAttendance = (regid: string) => {
-    setSelectedStudent(regid)
     setIsAttendanceModalOpen(true)
     fetchAttendanceData(regid)
   }

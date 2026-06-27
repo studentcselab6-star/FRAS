@@ -30,7 +30,6 @@ frontend/
 │   │   ├── AddStudent.tsx
 │   │   ├── EditStudent.tsx
 │   │   ├── TakeAttendance.tsx
-│   │   ├── CheckAttendance.tsx
 │   │   ├── Profile.tsx
 │   │   ├── Login.tsx
 │   │   ├── Register.tsx

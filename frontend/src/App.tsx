@@ -8,7 +8,6 @@ import Students from './pages/Students'
 import AddStudent from './pages/AddStudent'
 import EditStudent from './pages/EditStudent'
 import TakeAttendance from './pages/TakeAttendance'
-import CheckAttendance from './pages/CheckAttendance'
 import Profile from './pages/Profile'
 import ManageFaculty from './pages/faculty/ManageFaculty'
 import AddFaculty from './pages/faculty/AddFaculty'
@@ -69,14 +68,6 @@ function App() {
             element={
               <ProtectedRoute>
                 <TakeAttendance />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="check-attendance"
-            element={
-              <ProtectedRoute>
-                <CheckAttendance />
               </ProtectedRoute>
             }
           />
