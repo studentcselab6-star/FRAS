@@ -92,6 +92,10 @@ export const studentApi = {
   update: (formData: FormData) => api.post('/update-students', formData, {headers: { 'Content-Type': 'multipart/form-data'} }),
 
   delete: (regid: string) => api.delete(`/students/${encodeURIComponent(regid)}`),
+  
+  generateEmbedding: (formData: FormData) => api.post('/generate-embedding', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  }),
 }
 
 // Attendance APIs
@@ -100,10 +104,9 @@ export const attendanceApi = {
 
   getAttendanceSummary: (regid: string) => api.get(`/attendance/summary/${encodeURIComponent(regid)}`),
 
-  recognize: (images: Blob[], classInfo: string) => {
+  recognize: (images: Blob[]) => {
     const formData = new FormData()
     images.forEach((img) => formData.append("images", img))
-    formData.append("class_info", classInfo)
     return api.post('/attendance/recognize', formData, {
       headers: { "Content-Type": "multipart/form-data" },
     })

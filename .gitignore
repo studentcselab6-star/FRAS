@@ -10,3 +10,4 @@ venv/
 CLAUDE.md
 backend/assets/
 backend/temp/
+frontend/src/pages/AddStudent.tsx.bak

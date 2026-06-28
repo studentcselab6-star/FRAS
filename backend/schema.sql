@@ -48,8 +48,12 @@ CREATE TABLE IF NOT EXISTS face_embeddings (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Create index for vector search
-CREATE INDEX IF NOT EXISTS idx_face_embeddings ON face_embeddings USING ivfflat (embedding vector_cosine_ops);
+-- Create index for vector search using HNSW for better performance
+-- HNSW provides faster search with comparable accuracy to IVFFlat
+CREATE INDEX IF NOT EXISTS idx_face_embeddings ON face_embeddings USING hnsw (embedding vector_cosine_ops);
+
+-- Alternative index using IVFFlat (commented out)
+-- CREATE INDEX IF NOT EXISTS idx_face_embeddings_ivf ON face_embeddings USING ivfflat (embedding vector_cosine_ops);
 
 -- Attendance table
 CREATE TABLE IF NOT EXISTS attendance (

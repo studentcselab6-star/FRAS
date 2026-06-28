@@ -101,22 +101,28 @@ async def match_face(embedding: List[float], threshold: float = 0.6) -> Optional
     Match a face embedding against stored embeddings in the database.
     Returns the regid of the closest match if confidence > threshold, else None.
     """
+    from pgvector.asyncpg import register_vector
+    from pgvector import Vector
     import db
     
-    # Find the closest match
-    matches = await db.query(
-        """
-        SELECT regid, 1 - (embedding <=> $1) as confidence
-        FROM face_embeddings
-        ORDER BY embedding <=> $1
-        LIMIT 1
-        """,
-        [embedding]
-    )
-    
-    if matches and matches[0]["confidence"] >= threshold:
-        return matches[0]["regid"]
-    return None
+    # Ensure pgvector is registered for this connection
+    async with db.pool.acquire() as conn:
+        await register_vector(conn)
+        
+        # Find the closest match
+        matches = await conn.fetch(
+            """
+            SELECT regid, 1 - (embedding <=> $1) as confidence
+            FROM face_embeddings
+            ORDER BY embedding <=> $1
+            LIMIT 1
+            """,
+            Vector(embedding)
+        )
+        
+        if matches and matches[0]["confidence"] >= threshold:
+            return matches[0]["regid"]
+        return None
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:

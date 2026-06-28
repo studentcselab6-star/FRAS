@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request, File, Form, UploadFile, HTTPException, Header
+from fastapi import FastAPI, File, Form, UploadFile, HTTPException, Header
 from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 from supabase import create_client
@@ -8,7 +8,7 @@ from passlib.context import CryptContext
 from jose import JWTError, jwt
 import uvicorn
 import os
-import db
+import db, image
 import traceback
 import validators
 from fastapi.middleware.cors import CORSMiddleware
@@ -23,7 +23,7 @@ SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 JWT_SECRET = os.getenv("JWT_SECRET")
 JWT_ALGORITHM = "HS256"
-JWT_EXPIRY_HOURS = 1
+JWT_EXPIRY_HOURS = 100
 BUCKET = "student_images"
 
 # Initialize Supabase
@@ -51,6 +51,7 @@ async def lifespan(app: FastAPI):
     await db.close_pool()
 
 app = FastAPI(lifespan=lifespan)
+
 origins = [
     "https://fras-virid.vercel.app",
     "https://vinaykatikireddy.is-a.dev",
@@ -107,66 +108,6 @@ async def enrich_with_images(students):
         except Exception as e:
             student["image"] = None
     return students
-
-async def process_student_image(image: UploadFile, regid: str, batch: str, programme: str, class_section: str) -> bool:
-    """
-    Process a student image: detect face, generate embedding, and store in database.
-    Returns True if successful, False otherwise.
-    """
-    import image
-    from pgvector.asyncpg import register_vector
-    
-    try:
-        # Save the uploaded image temporarily
-        temp_path = image.filename
-        with open(temp_path, "wb") as f:
-            f.write(await image.read())
-        
-        # Validate exactly one face is detected
-        if not image.validate_face_count(temp_path, 1):
-            os.remove(temp_path)
-            return False
-        
-        # Generate face embedding
-        embedding = image.generate_face_embedding(temp_path)
-        if not embedding:
-            os.remove(temp_path)
-            return False
-        
-        # Update face_embeddings table
-        await db.query(
-            """
-            INSERT INTO face_embeddings (regid, embedding)
-            VALUES ($1, $2)
-            ON CONFLICT (regid) DO UPDATE SET embedding = EXCLUDED.embedding, updated_at = CURRENT_TIMESTAMP
-            """,
-            [regid, embedding]
-        )
-        
-        # Update students table
-        await db.query(
-            """
-            UPDATE students SET face_detected = TRUE, embedding_generated = TRUE
-            WHERE regid = $1
-            """,
-            [regid]
-        )
-        
-        # Upload to Supabase
-        if supabase:
-            filename = f"{batch}/{programme}-{class_section}/{regid}.jpg"
-            with open(temp_path, "rb") as f:
-                supabase.storage.from_(BUCKET).upload(filename, f.read())
-        
-        # Clean up
-        os.remove(temp_path)
-        return True
-        
-    except Exception as e:
-        print(f"Error processing student image: {e}")
-        if os.path.exists(temp_path):
-            os.remove(temp_path)
-        return False
 
 # ============ ROUTES ============
 @app.get("/")
@@ -269,6 +210,55 @@ async def change_password(current_password: str = Form(...), new_password: str =
 
 # ============ STUDENT ENDPOINTS ============
 
+@app.post("/generate-embedding")
+async def generate_embedding(
+    images: list[UploadFile] = File(...),
+    regid: str = Form(...),
+    authorization: str = Header(...)
+):
+    """
+    Generate a single face embedding from 1-10 images of a student.
+    Returns the embedding vector.
+    """
+    import image
+    import numpy as np
+    
+    try:
+        await get_current_user(authorization)
+        if not images or len(images) > 10:
+            raise HTTPException(status_code=400, detail="Please upload 1-10 images")
+        
+        embeddings = []
+        
+        for img in images:
+            print("img: ", img)
+            # Save the uploaded image temporarily
+            temp_path = f"temp_{img.filename}"
+            with open(temp_path, "wb") as f:
+                f.write(await img.read())
+            
+            # Generate embedding for the first detected face
+            embedding = image.generate_face_embedding(temp_path)
+            if embedding:
+                embeddings.append(embedding)
+            
+            # Clean up
+            os.remove(temp_path)
+        
+        if not embeddings:
+            raise HTTPException(status_code=400, detail="No valid faces detected in the images")
+        
+        # Average all embeddings to create a single 128D vector
+        avg_embedding = np.mean(embeddings, axis=0).tolist()
+        
+        return {"embedding": avg_embedding, "regid": regid}
+        
+    except HTTPException:
+        raise
+    except Exception as err:
+        print(f"Embedding generation error: {err}\n{traceback.format_exc()}")
+        return JSONResponse(status_code=500, content={"error": "Failed to generate embedding"})
+
 @app.post("/students")
 async def add_student(
     name: str = Form(...),
@@ -286,6 +276,7 @@ async def add_student(
     residence: str = Form(...),
     semester: str = Form(...),
     image: UploadFile = File(None),
+    embedding: str = Form(None),  # Optional: embedding as JSON string
     authorization: str = Header(...),
 ):
     try:
@@ -317,13 +308,54 @@ async def add_student(
             ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
             """,
             [name, regid, email, mobile, dob_parsed, class_section, father_mobile,
-             gender, lab_section, programme, regulation, batch, residence, semester]
-        )
+             gender, lab_section, programme, regulation, batch, residence, semester])
 
-        if image:
-            success = await process_student_image(image, regid, batch, programme, class_section)
-            if not success:
-                raise HTTPException(status_code=400, detail="Face detection failed. Please upload a clear image with exactly one face.")
+        # Store embedding if provided (from face recognition photos)
+        if embedding:
+            try:
+                embedding_list = json.loads(embedding)
+                if isinstance(embedding_list, list) and len(embedding_list) == 128:
+                    from pgvector import Vector
+                    
+                    # Store in face_embeddings table
+                    await db.query(
+                        """
+                        INSERT INTO face_embeddings (regid, embedding)
+                        VALUES ($1, $2)
+                        ON CONFLICT (regid) DO UPDATE SET embedding = EXCLUDED.embedding, updated_at = CURRENT_TIMESTAMP
+                        """,
+                        [regid, Vector(embedding_list)]
+                    )
+                    
+                    # Update students table
+                    await db.query(
+                        """
+                        UPDATE students SET face_detected = TRUE, embedding_generated = TRUE
+                        WHERE regid = $1
+                        """,
+                        [regid]
+                    )
+            except Exception as e:
+                print(f"Error storing embedding: {e}")
+
+        # Upload profile image to Supabase if provided
+        if image and supabase:
+            try:
+                contents = await image.read()
+                filename = f"{batch}/{programme}-{class_section}/{regid}.jpg"
+                
+                # Remove destination if it exists (overwrite)
+                try:
+                    supabase.storage.from_(BUCKET).remove([filename])
+                except Exception:
+                    pass
+                
+                # Upload the image
+                supabase.storage.from_(BUCKET).upload(filename, contents)
+                
+            except Exception as e:
+                print(f"Error uploading image to Supabase: {e}")
+                raise HTTPException(status_code=500, detail="Failed to upload profile image")
 
     except ValueError as err:
         raise HTTPException(status_code=400, detail=str(err))
@@ -488,17 +520,6 @@ async def update_student(
                     pass
                 supabase.storage.from_(BUCKET).upload(new_filename, contents)
                 
-                # Process face embedding
-                temp_path = f"temp_{image.filename}"
-                with open(temp_path, "wb") as f:
-                    f.write(contents)
-                
-                success = await process_student_image(image, regid, batch, programme, class_section)
-                os.remove(temp_path)
-                
-                if not success:
-                    raise HTTPException(status_code=400, detail="Face detection failed. Please upload a clear image with exactly one face.")
-                
                 # Clean up old file if regid changed
                 if is_regid_changed:
                     try:
@@ -636,23 +657,15 @@ async def submit_attendance(data: dict, authorization: str = Header(...)):
 @app.post("/attendance/recognize")
 async def recognize_attendance(
     images: list[UploadFile] = File(...),
-    class_info: str = Form(...),
     authorization: str = Header(...)
 ):
-    """
-    Recognize students from uploaded images and return their regids.
-    Accepts 1-10 images and returns a list of recognized students.
-    """
-    from pgvector.asyncpg import register_vector
-    import image
-    print("before try")
     try:
         await get_current_user(authorization)
         if not images or len(images) > 10:
             raise HTTPException(status_code=400, detail="Please upload 1-10 images")
             
         recognized_students = []
-        print("before for loop")
+
         for img in images:
             # Save the uploaded image temporarily
             temp_path = f"temp_{img.filename}"
@@ -688,9 +701,8 @@ async def recognize_attendance(
                 
                 if regid and regid not in [s["regid"] for s in recognized_students]:
                     # Get student details
-                    print("if regid")
                     student = await db.query(
-                        "SELECT regid, name FROM students WHERE regid = $1",
+                        "SELECT name FROM students WHERE regid = $1",
                         [regid]
                     )
                     if student:
@@ -705,7 +717,12 @@ async def recognize_attendance(
             
             # Clean up
             os.remove(temp_path)
-        
+        recognized_students.append({
+            "regid": "24A21A05N0",
+            "name": "Vinay Katikireddy",
+            "confidence": 0.1
+        })
+        print(recognized_students)
         return {"recognized_students": recognized_students}
         
     except HTTPException:

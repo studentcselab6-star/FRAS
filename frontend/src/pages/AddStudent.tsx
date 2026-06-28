@@ -14,14 +14,18 @@ import {
   residenceOptions,
 } from '../constants/options'
 
-const IMAGE_LIMIT = 1
+const PROFILE_IMAGE_LIMIT = 1
+const FACE_RECOGNITION_LIMIT = 10
 
 const AddStudent = () => {
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const cameraRef = useRef<CameraHandle>(null)
+  const profileCameraRef = useRef<CameraHandle>(null)
+  const faceRecognitionCameraRef = useRef<CameraHandle>(null)
   const toast = useToast()
   const [loading, setLoading] = useState(false)
+  const [embeddingLoading, setEmbeddingLoading] = useState(false)
   const [image, setImage] = useState<CapturedImage | null>(null)
+  const [faceRecognitionImages, setFaceRecognitionImages] = useState<CapturedImage[]>([])
   const [errors, setErrors] = useState<Partial<Record<keyof StudentFormData, string>>>({})
 
   const [formData, setFormData] = useState<StudentFormData>({
@@ -41,8 +45,12 @@ const AddStudent = () => {
     residence: '',
   })
 
-  const handleImagesChange = (newImages: CapturedImage[]) => {
+  const handleProfileImagesChange = (newImages: CapturedImage[]) => {
     setImage(newImages.length > 0 ? newImages[0] : null)
+  }
+  
+  const handleFaceRecognitionImagesChange = (newImages: CapturedImage[]) => {
+    setFaceRecognitionImages(newImages)
   }
 
   const removeImage = () => {
@@ -50,11 +58,27 @@ const AddStudent = () => {
       try { URL.revokeObjectURL(image.url) } catch {}
     }
     setImage(null)
-    cameraRef.current?.clearImages()
+    profileCameraRef.current?.clearImages()
+  }
+  
+  const removeFaceRecognitionImages = () => {
+    faceRecognitionImages.forEach(img => {
+      try { URL.revokeObjectURL(img.url) } catch {}
+    })
+    setFaceRecognitionImages([])
+    faceRecognitionCameraRef.current?.clearImages()
   }
 
-  const openCamera = () => {
-    cameraRef.current?.open()
+  const openProfileCamera = () => {
+    if (profileCameraRef.current) {
+      profileCameraRef.current.open()
+    }
+  }
+  
+  const openFaceRecognitionCamera = () => {
+    if (faceRecognitionCameraRef.current) {
+      faceRecognitionCameraRef.current.open()
+    }
   }
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -94,6 +118,42 @@ const AddStudent = () => {
     return Object.keys(newErrors).length === 0
   }
 
+  const generateEmbedding = async () => {
+    if (faceRecognitionImages.length === 0) {
+      toast.warning('Please capture at least one face recognition photo')
+      return
+    }
+    
+    if (!formData.regid) {
+      toast.warning('Please enter Reg ID first')
+      return
+    }
+    
+    setEmbeddingLoading(true)
+    try {
+      const formDataToSend = new FormData()
+      formDataToSend.append('regid', formData.regid)
+      
+      // Append all images
+      faceRecognitionImages.forEach((img, index) => {
+        formDataToSend.append('images', img.blob, `face_${index}.jpg`)
+      })
+      
+      const response = await studentApi.generateEmbedding(formDataToSend)
+      
+      // Store the embedding in state to send with the main form
+      setFormData(prev => ({ ...prev, embedding: JSON.stringify(response.data.embedding) }))
+      
+      toast.success('Face recognition embedding generated successfully!')
+      
+    } catch (err: any) {
+      console.error('Error generating embedding:', err)
+      toast.error(getApiErrorMessage(err))
+    } finally {
+      setEmbeddingLoading(false)
+    }
+  }
+  
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
@@ -112,20 +172,28 @@ const AddStudent = () => {
       const formDataToSend = new FormData()
 
       Object.entries(formData).forEach(([key, value]) => {
-        formDataToSend.append(key, value)
+        if (key !== 'embedding' && value) {
+          formDataToSend.append(key, value)
+        }
       })
+      
+      // Add embedding if it exists
+      if (formData.embedding) {
+        formDataToSend.append('embedding', formData.embedding)
+      }
 
       formDataToSend.append('image', image.blob, 'profile.jpg')
 
       await studentApi.create(formDataToSend)
       
-      
       toast.success('Student added successfully!')
       removeImage()
+      removeFaceRecognitionImages()
       setFormData({
         name: '', regid: '', gender: '', email: '', mobile: '', dob: '',
         programme: '', semester: '', regulation: '', batch: '',
         fatherMobile: '', lab_section: '', class_section: '', residence: '',
+        embedding: ''
       })
       setErrors({})
       
@@ -184,15 +252,15 @@ const AddStudent = () => {
               </div>
               {/* Actions */}
               <div className="flex flex-col gap-3">
-                <div className="flex gap-3">
-                  <button
-                    type="button"
-                    onClick={openCamera}
-                    className="px-4 py-2 bg-fras-gold text-white rounded-lg hover:bg-fras-gold-dark transition-colors flex items-center gap-2"
-                  >
-                    <i className="fas fa-camera" />
-                    Take new Photo
-                  </button>
+                 <div className="flex gap-3">
+                   <button
+                     type="button"
+                     onClick={openProfileCamera}
+                     className="px-4 py-2 bg-fras-gold text-white rounded-lg hover:bg-fras-gold-dark transition-colors flex items-center gap-2"
+                   >
+                     <i className="fas fa-camera" />
+                     Take new Photo
+                   </button>
                   <span style={{ alignSelf: 'center' }}>OR</span>
                   <button
                     type="button"
@@ -206,17 +274,88 @@ const AddStudent = () => {
                 <p className="text-xs text-gray-500">Clear front-facing photo. JPG/PNG accepted.</p>
               </div>
             </div>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/jpeg,image/png"
-              className="hidden"
-              onChange={handleFileUpload}
-            />
-            <Camera ref={cameraRef} onImagesChange={handleImagesChange} maxImages={IMAGE_LIMIT} showPreview={false} />
-          </div>
+             <input
+               ref={fileInputRef}
+               type="file"
+               accept="image/jpeg,image/png"
+               className="hidden"
+               onChange={handleFileUpload}
+             />
+           </div>
+            
+           {/* Face Recognition Photos */}
+           <div className="border-b border-gray-200 pb-6">
+             <h3 className="text-lg font-semibold text-gray-800 mb-4">Face Recognition Photos</h3>
+             <div className="flex flex-col gap-4">
+               <div className="flex items-start gap-6">
+                 {/* Preview */}
+                 <div className="flex-shrink-0">
+                   {faceRecognitionImages.length > 0 ? (
+                     <div className="relative group">
+                       <div className="w-32 h-32 rounded-lg border-2 border-fras-gold bg-gray-50 flex flex-wrap gap-1 p-1 overflow-hidden">
+                         {faceRecognitionImages.slice(0, 4).map((img, index) => (
+                           <img
+                             key={img.id}
+                             src={img.url}
+                             alt={`Face ${index + 1}`}
+                             className="w-14 h-14 object-cover rounded"
+                           />
+                         ))}
+                         {faceRecognitionImages.length > 4 && (
+                           <div className="w-14 h-14 bg-fras-gold/20 rounded flex items-center justify-center text-xs">
+                             +{faceRecognitionImages.length - 4}
+                           </div>
+                         )}
+                       </div>
+                     </div>
+                   ) : (
+                     <div className="w-32 h-32 rounded-lg border-2 border-dashed border-gray-300 flex flex-col items-center justify-center bg-gray-50">
+                       <i className="fas fa-users text-3xl text-gray-300 mb-1" />
+                       <span className="text-xs text-gray-400">No photos</span>
+                     </div>
+                   )}
+                 </div>
+                 {/* Actions */}
+                 <div className="flex flex-col gap-3">
+                   <div className="flex gap-3">
+                     <button
+                       type="button"
+                       onClick={openFaceRecognitionCamera}
+                       className="px-4 py-2 bg-fras-blue text-white rounded-lg hover:bg-fras-blue-dark transition-colors flex items-center gap-2"
+                     >
+                       <i className="fas fa-camera" />
+                       Take Photos
+                     </button>
+                     {faceRecognitionImages.length > 0 && (
+                       <button
+                         type="button"
+                         onClick={removeFaceRecognitionImages}
+                         className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors flex items-center gap-2"
+                       >
+                         <i className="fas fa-trash" />
+                         Clear All
+                       </button>
+                     )}
+                   </div>
+                   <p className="text-xs text-gray-500">Capture 1-10 photos from different angles for face recognition.</p>
+                 </div>
+               </div>
+               <div className="flex justify-end">
+                 <Button
+                   type="button"
+                   variant="secondary"
+                   onClick={generateEmbedding}
+                   isLoading={embeddingLoading}
+                   disabled={faceRecognitionImages.length === 0}
+                 >
+                   <i className="fas fa-robot mr-2" />
+                   {embeddingLoading ? 'Generating Embedding...' : 'Generate Face Recognition Embedding'}
+                 </Button>
+               </div>
+             </div>
+           </div>
 
-          {/* Personal Information */}
+           {/* Personal Information */}
           <div className="border-b border-gray-200 pb-6">
             <h3 className="text-lg font-semibold text-gray-800 mb-4">Personal Information</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -435,10 +574,12 @@ const AddStudent = () => {
               className="text-yellow-500"
               onClick={() => {
                 removeImage()
+                removeFaceRecognitionImages()
                 setFormData({
                   name: '', regid: '', gender: '', email: '', mobile: '', dob: '',
                   programme: '', semester: '', regulation: '', batch: '',
                   fatherMobile: '', lab_section: '', class_section: '', residence: '',
+                  embedding: ''
                 })
                 setErrors({})
               }}
@@ -457,6 +598,8 @@ const AddStudent = () => {
           </div>
         </form>
       </div>
+      <Camera ref={profileCameraRef} onImagesChange={handleProfileImagesChange} maxImages={PROFILE_IMAGE_LIMIT} showPreview={false} />
+      <Camera ref={faceRecognitionCameraRef} onImagesChange={handleFaceRecognitionImagesChange} maxImages={FACE_RECOGNITION_LIMIT} showPreview={false} />
     </div>
   )
 }

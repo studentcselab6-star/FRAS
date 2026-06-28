@@ -55,6 +55,7 @@ export interface StudentFormData {
   lab_section: string
   class_section: string
   residence: string
+  embedding?: string
 }
 
 // Attendance Types

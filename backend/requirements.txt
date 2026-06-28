@@ -9,3 +9,12 @@ passlib[bcrypt]==1.7.4
 bcrypt==4.0.1
 pydantic==2.5.0
 pydantic-settings==2.1.0
+
+# Face recognition dependencies
+pgvector==0.4.2
+deepface==0.0.100
+mtcnn==1.0.0
+Pillow==12.2.0
+tensorflow==2.21.0
+numpy==2.5.0
+opencv-python==4.13.0.92

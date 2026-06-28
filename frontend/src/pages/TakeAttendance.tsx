@@ -128,19 +128,22 @@ const TakeAttendance: React.FC = () => {
         setIsRecognizing(true)
         try {
             const response = await attendanceApi.recognize(
-                images.map(img => img.blob),
-                `${programme}-${section}`
+                images.map(img => img.blob)
             )
             
             setRecognizedStudents(response.data.recognized_students)
             
-            // Update attendance status for recognized students
-            setRows(prev => prev.map(row => {
-                const recognized = response.data.recognized_students.find(s => s.regid === row.regid)
-                return recognized ? { ...row, status: 1 } : row
-            }))
+            // Count students in each confidence range
+            const highConfidence = response.data.recognized_students.filter(s => s.confidence >= 0.7).length
+            const mediumConfidence = response.data.recognized_students.filter(s => s.confidence >= 0.3 && s.confidence < 0.7).length
+            const lowConfidence = response.data.recognized_students.filter(s => s.confidence < 0.3).length
             
-            toast.success(`Recognized ${response.data.recognized_students.length} student(s)`)
+            toast.success(
+                `Recognized ${response.data.recognized_students.length} student(s): 
+                ${highConfidence} high confidence (≥70%), 
+                ${mediumConfidence} medium confidence (30-70%), 
+                ${lowConfidence} low confidence (<30%)`
+            )
         } catch (err: any) {
             toast.error(err?.response?.data?.detail || 'Face recognition failed')
         } finally {
@@ -182,11 +185,9 @@ const TakeAttendance: React.FC = () => {
                 Take Attendance
             </h1>
 
-            <Camera ref={cameraRef} maxImages={10} />
-
             <div className="bg-white rounded-lg shadow-2xl p-8">
                 {/* Filters */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6 pb-6 border-b border-gray-200">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-3">
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
                             Programme
@@ -265,7 +266,7 @@ const TakeAttendance: React.FC = () => {
                 </div>
 
                 {/* Period */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6 pb-6 border-b border-gray-200">
+                <div className="grid grid-cols-[40px_1fr] gap-4 mb-6 pb-6 border-b border-gray-200">
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                         Period
                     </label>
@@ -284,6 +285,29 @@ const TakeAttendance: React.FC = () => {
                             </button>
                         ))}
                     </div>
+                </div>
+
+                <Camera ref={cameraRef} maxImages={10} />
+
+                <div className="flex gap-2 mt-3 mb-6 pb-6 border-b border-gray-200">
+                    <Button
+                        variant="primary"
+                        onClick={handleTakePhotos}
+                        disabled={!hasFilter}
+                    >
+                        <i className="fas fa-camera" />
+                        Take Photos
+                    </Button>
+                    <Button
+                        variant="secondary"
+                        className="text-cyan"
+                        onClick={handleRecognize}
+                        isLoading={isRecognizing}
+                        disabled={!hasFilter}
+                    >
+                        <i className="fas fa-robot" />
+                        {isRecognizing ? 'Recognizing...' : 'Recognize Faces'}
+                    </Button>
                 </div>
 
                 {loading && (
@@ -391,13 +415,24 @@ const TakeAttendance: React.FC = () => {
                                                 <td className="px-4 py-3">
                                                     {recognizedStudents.find(s => s.regid === student.regid) ? (
                                                         <div className="flex items-center gap-2">
-                                                            <i className="fas fa-check-circle text-green-500" />
-                                                            <span className="text-sm text-gray-600">
-                                                                {Math.round(recognizedStudents.find(s => s.regid === student.regid)?.confidence * 100)}%
+                                                            {/* Show suggested status based on confidence */}
+                                                            {(() => {
+                                                                const confidence = recognizedStudents.find(s => s.regid === student.regid)?.confidence || 0
+                                                                if (confidence >= 0.7) {
+                                                                    return <i className="fas fa-check-circle text-green-500" title="Suggested Present (High confidence)" />
+                                                                } else if (confidence >= 0.3) {
+                                                                    return <i className="fas fa-exclamation-triangle text-yellow-500" title="Suggested Doubt (Medium confidence)" />
+                                                                } else {
+                                                                    return <i className="fas fa-times-circle text-red-500" title="Suggested Absent (Low confidence)" />
+                                                                }
+                                                            })()}
+
+                                                            <span className="text-sm text-gray-600 font-medium">
+                                                                {Math.round((recognizedStudents.find(s => s.regid === student.regid)?.confidence || 0) * 100)}%
                                                             </span>
                                                         </div>
                                                     ) : (
-                                                        <i className="fas fa-question-circle text-gray-400" />
+                                                        <i className="fas fa-question-circle text-gray-400" title="Not recognized" />
                                                     )}
                                                 </td>
                                                 <td className="px-4 py-3">
@@ -420,27 +455,6 @@ const TakeAttendance: React.FC = () => {
 
                         {students.length > 0 && (
                             <div className="mt-6 flex flex-wrap gap-4 justify-between items-center">
-                                <div className="flex gap-2">
-                                    <Button
-                                        variant="primary"
-                                        onClick={handleTakePhotos}
-                                        disabled={!hasFilter}
-                                    >
-                                        <i className="fas fa-camera" />
-                                        Take Photos
-                                    </Button>
-                                    <Button
-                                        variant="secondary"
-                                        className="text-cyan"
-                                        onClick={handleRecognize}
-                                        isLoading={isRecognizing}
-                                        disabled={!hasFilter}
-                                    >
-                                        <i className="fas fa-robot" />
-                                        {isRecognizing ? 'Recognizing...' : 'Recognize Faces'}
-                                    </Button>
-                                </div>
-                                
                                 <Button
                                     variant="success"
                                     onClick={handleSubmit}
