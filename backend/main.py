@@ -1,19 +1,26 @@
-from fastapi import FastAPI, File, Form, UploadFile, HTTPException, Header
-from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
-from supabase import create_client
-from dotenv import load_dotenv
-from datetime import date, datetime, timedelta
-from passlib.context import CryptContext
-from jose import JWTError, jwt
-import uvicorn
+from datetime import date, datetime, timedelta, timezone
+
 import os
-import db, image
+import json
 import traceback
+
+import cv2
+import numpy as np
+import uvicorn
 import validators
-from fastapi.middleware.cors import CORSMiddleware
 from asyncpg.exceptions import UniqueViolationError
+from dotenv import load_dotenv
+from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from jose import JWTError, jwt
+from passlib.context import CryptContext
 from pgvector.asyncpg import register_vector
+from supabase import create_client
+
+import db
+import image as face_recognition
 
 load_dotenv()
 
@@ -39,7 +46,6 @@ async def lifespan(app: FastAPI):
     # Initialize the database pool
     await db.init_pool()
     
-    # Ensure the pool is initialized
     if db.pool is None:
         raise RuntimeError("Failed to initialize database pool")
     
@@ -70,10 +76,10 @@ app.add_middleware(
 )
 
 # Middleware for logging
-# @app.middleware("http")
-# async def log_requests(request: Request, call_next):
-#     print(f"Incoming: {request.method} {request.url.path}")
-#     return await call_next(request)
+@app.middleware("http")
+async def log_requests(request, call_next):
+    print(f"Incoming: {request.method} {request.url.path}")
+    return await call_next(request)
 
 
 # ============ HELPER FUNCTIONS ============
@@ -134,7 +140,7 @@ async def login(username: str = Form(...), password: str = Form(...)):
             raise HTTPException(status_code=401, detail="Invalid credentials")
 
         # Create JWT token
-        expire = datetime.utcnow() + timedelta(hours=JWT_EXPIRY_HOURS)
+        expire = datetime.now(timezone.utc) + timedelta(hours=JWT_EXPIRY_HOURS)
         to_encode = {"sub": username, "exp": expire}
         token = jwt.encode(to_encode, JWT_SECRET, algorithm=JWT_ALGORITHM)
         return {
@@ -210,55 +216,6 @@ async def change_password(current_password: str = Form(...), new_password: str =
 
 # ============ STUDENT ENDPOINTS ============
 
-@app.post("/generate-embedding")
-async def generate_embedding(
-    images: list[UploadFile] = File(...),
-    regid: str = Form(...),
-    authorization: str = Header(...)
-):
-    """
-    Generate a single face embedding from 1-10 images of a student.
-    Returns the embedding vector.
-    """
-    import image
-    import numpy as np
-    
-    try:
-        await get_current_user(authorization)
-        if not images or len(images) > 10:
-            raise HTTPException(status_code=400, detail="Please upload 1-10 images")
-        
-        embeddings = []
-        
-        for img in images:
-            print("img: ", img)
-            # Save the uploaded image temporarily
-            temp_path = f"temp_{img.filename}"
-            with open(temp_path, "wb") as f:
-                f.write(await img.read())
-            
-            # Generate embedding for the first detected face
-            embedding = image.generate_face_embedding(temp_path)
-            if embedding:
-                embeddings.append(embedding)
-            
-            # Clean up
-            os.remove(temp_path)
-        
-        if not embeddings:
-            raise HTTPException(status_code=400, detail="No valid faces detected in the images")
-        
-        # Average all embeddings to create a single 128D vector
-        avg_embedding = np.mean(embeddings, axis=0).tolist()
-        
-        return {"embedding": avg_embedding, "regid": regid}
-        
-    except HTTPException:
-        raise
-    except Exception as err:
-        print(f"Embedding generation error: {err}\n{traceback.format_exc()}")
-        return JSONResponse(status_code=500, content={"error": "Failed to generate embedding"})
-
 @app.post("/students")
 async def add_student(
     name: str = Form(...),
@@ -276,7 +233,7 @@ async def add_student(
     residence: str = Form(...),
     semester: str = Form(...),
     image: UploadFile = File(None),
-    embedding: str = Form(None),  # Optional: embedding as JSON string
+    embedding: str = Form(...),
     authorization: str = Header(...),
 ):
     try:
@@ -299,44 +256,51 @@ async def add_student(
         semester = validators.validate(semester, "Semester", validators.VALID_SEMESTERS)
         validators.validate_image(image)
 
-        await db.query(
-            """
-            INSERT INTO students (
-                name, regid, email, mobile, dob, class_section,
-                father_mobile, gender, lab_section, programme,
-                regulation, batch, residence, semester
-            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
-            """,
-            [name, regid, email, mobile, dob_parsed, class_section, father_mobile,
-             gender, lab_section, programme, regulation, batch, residence, semester])
-
-        # Store embedding if provided (from face recognition photos)
+        # Use transaction for all database operations
         if embedding:
             try:
                 embedding_list = json.loads(embedding)
                 if isinstance(embedding_list, list) and len(embedding_list) == 128:
                     from pgvector import Vector
                     
-                    # Store in face_embeddings table
+                    await db.query(
+                        """
+                        INSERT INTO students (
+                            name, regid, email, mobile, dob, class_section,
+                            father_mobile, gender, lab_section, programme,
+                            regulation, batch, residence, semester
+                        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+                        """,
+                        [name, regid, email, mobile, dob_parsed, class_section, father_mobile,
+                         gender, lab_section, programme, regulation, batch, residence, semester],
+                        transaction=True
+                    )
+                    
                     await db.query(
                         """
                         INSERT INTO face_embeddings (regid, embedding)
                         VALUES ($1, $2)
-                        ON CONFLICT (regid) DO UPDATE SET embedding = EXCLUDED.embedding, updated_at = CURRENT_TIMESTAMP
+                        ON CONFLICT (regid) DO UPDATE SET embedding = EXCLUDED.embedding
                         """,
-                        [regid, Vector(embedding_list)]
-                    )
-                    
-                    # Update students table
-                    await db.query(
-                        """
-                        UPDATE students SET face_detected = TRUE, embedding_generated = TRUE
-                        WHERE regid = $1
-                        """,
-                        [regid]
+                        [regid, Vector(embedding_list)],
+                        transaction=True
                     )
             except Exception as e:
                 print(f"Error storing embedding: {e}")
+                raise HTTPException(status_code=500, detail="Failed to store face embedding")
+        else:
+            await db.query(
+                """
+                INSERT INTO students (
+                    name, regid, email, mobile, dob, class_section,
+                    father_mobile, gender, lab_section, programme,
+                    regulation, batch, residence, semester
+                ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+                """,
+                [name, regid, email, mobile, dob_parsed, class_section, father_mobile,
+                 gender, lab_section, programme, regulation, batch, residence, semester],
+                transaction=True
+            )
 
         # Upload profile image to Supabase if provided
         if image and supabase:
@@ -368,7 +332,6 @@ async def add_student(
 @app.get("/students/filter")
 async def filter_students(programme: str = "", batch: str = "", section: str = "", semester: str = "", authorization: str = Header(...)):
     try:
-        print("HIHIHI")
         await get_current_user(authorization)
         conditions = []
         params = []
@@ -481,30 +444,75 @@ async def update_student(
             if collision:
                 raise HTTPException(status_code=400, detail="A student with this Reg ID already exists")
 
-        await db.query(
-            """
-            UPDATE students
-            SET
-                name = $1,
-                regid = $2,
-                email = $3,
-                mobile = $4,
-                dob = $5,
-                class_section = $6,
-                father_mobile = $7,
-                gender = $8,
-                lab_section = $9,
-                programme = $10,
-                regulation = $11,
-                batch = $12,
-                residence = $13,
-                semester = $14
-            WHERE regid = $15
-            """,
-            [name, regid, email, mobile, dob_parsed, class_section, father_mobile,
-             gender, lab_section, programme, regulation, batch, residence,
-             semester, oldregid_upper]
-        )
+        try:
+            await db.query("BEGIN")
+            if oldregid_upper != regid:
+                # Use a CTE to update both tables atomically
+                await db.query(
+                    """
+                    WITH update_students AS (
+                        UPDATE students
+                        SET
+                            name = $1,
+                            regid = $2,
+                            email = $3,
+                            mobile = $4,
+                            dob = $5,
+                            class_section = $6,
+                            father_mobile = $7,
+                            gender = $8,
+                            lab_section = $9,
+                            programme = $10,
+                            regulation = $11,
+                            batch = $12,
+                            residence = $13,
+                            semester = $14
+                        WHERE regid = $15
+                        RETURNING regid
+                    )
+                    UPDATE face_embeddings
+                    SET regid = $2
+                    WHERE regid = $15
+                    """,
+                    [
+                        name, regid, email, mobile, dob_parsed, class_section, father_mobile,
+                        gender, lab_section, programme, regulation, batch, residence,
+                        semester, oldregid_upper
+                    ],
+                    transaction=True
+                )
+            else:
+                # No regid change, just update students
+                await db.query(
+                    """
+                    UPDATE students
+                    SET
+                        name = $1,
+                        email = $2,
+                        mobile = $3,
+                        dob = $4,
+                        class_section = $5,
+                        father_mobile = $6,
+                        gender = $7,
+                        lab_section = $8,
+                        programme = $9,
+                        regulation = $10,
+                        batch = $11,
+                        residence = $12,
+                        semester = $13
+                    WHERE regid = $14
+                    """,
+                    [
+                        name, email, mobile, dob_parsed, class_section, father_mobile,
+                        gender, lab_section, programme, regulation, batch, residence,
+                        semester, oldregid_upper
+                    ],
+                    transaction=True
+                )
+            await db.query("COMMIT")
+        except Exception as e:
+            await db.query("ROLLBACK")
+            raise e
 
         if supabase:
             new_filename = f"{batch}/{programme}-{class_section}/{regid}.jpg"
@@ -524,8 +532,6 @@ async def update_student(
                 if is_regid_changed:
                     try:
                         supabase.storage.from_(BUCKET).remove([old_filename])
-                        # Delete old embedding
-                        await db.query("DELETE FROM face_embeddings WHERE regid = $1", [oldregid_upper])
                     except Exception:
                         pass
             elif is_regid_changed:
@@ -538,14 +544,8 @@ async def update_student(
                         pass
                     supabase.storage.from_(BUCKET).upload(new_filename, old_data)
                     supabase.storage.from_(BUCKET).remove([old_filename])
-                    
-                    # Update embedding regid
-                    await db.query(
-                        "UPDATE face_embeddings SET regid = $1 WHERE regid = $2",
-                        [regid, oldregid_upper]
-                    )
                 except Exception:
-                    pass  # old image didn't exist, nothing to move
+                    pass
 
         return {"message": "Student updated successfully"}
     except ValueError as err:
@@ -603,6 +603,47 @@ async def delete_student(regid: str, authorization: str = Header(...)):
         print(f"Delete student error: {err}\n{traceback.format_exc()}")
         return JSONResponse(status_code=500, content={"error": "Failed to delete student"})
 
+@app.post("/generate-embedding")
+async def generate_embedding(images: list[UploadFile] = File(...), regid: str = Form(...), authorization: str = Header(...)):
+    try:
+        await get_current_user(authorization)
+        if not images or len(images) > 10:
+            raise HTTPException(status_code=400, detail="Please upload 1-10 images")
+        
+        embeddings = []
+        
+        for img in images:
+
+            contents = await img.read()
+            
+            # Convert memory bytes into a NumPy array structure
+            nparr = np.frombuffer(contents, np.uint8)
+            
+            # Decode the array into an OpenCV image matrix
+            cv_img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+            
+            if cv_img is None:
+                continue
+            
+            # Generate the embedding by passing the matrix directly
+            embedding = face_recognition.generate_face_embedding(cv_img)
+            if embedding:
+                embeddings.append(embedding)
+        
+        if not embeddings:
+            raise HTTPException(status_code=400, detail="No valid faces detected in the images")
+        
+        # Average all embeddings to create a single 128D vector
+        avg_embedding = np.mean(embeddings, axis=0).tolist()
+        
+        return {"embedding": avg_embedding, "regid": regid}
+        
+    except HTTPException:
+        raise
+    except Exception as err:
+        print(f"Embedding generation error: {err}\n{traceback.format_exc()}")
+        return JSONResponse(status_code=500, content={"error": "Failed to generate embedding"})
+
 # ============ ATTENDANCE ENDPOINTS ============
 @app.post("/attendance")
 async def submit_attendance(data: dict, authorization: str = Header(...)):
@@ -627,20 +668,26 @@ async def submit_attendance(data: dict, authorization: str = Header(...)):
             if status not in VALID_STATUSES:
                 raise ValueError(f"Invalid attendance status: {status}")
 
-            await db.query(
-                """
-                INSERT INTO attendance (regid, period, status, class, marked_by)
-                VALUES ($1, $2, $3, $4, $5)
-                ON CONFLICT (regid, date, period) DO UPDATE SET status = EXCLUDED.status
-                """,
-                [
-                    regid,
-                    period,
-                    status,
-                    class_name,
-                    current_user
-                ],
-            )
+        # Use a single transaction for all attendance inserts
+        async with db.pool.acquire() as conn:
+            async with conn.transaction():
+                for student in students:
+                    regid = (student.get("regid") or "").strip()
+                    status = student.get("status", 1)
+                    await conn.execute(
+                        """
+                        INSERT INTO attendance (regid, period, status, class, marked_by)
+                        VALUES ($1, $2, $3, $4, $5)
+                        ON CONFLICT (regid, date, period) DO UPDATE SET status = EXCLUDED.status
+                        """,
+                        [
+                            regid,
+                            period,
+                            status,
+                            class_name,
+                            current_user
+                        ],
+                    )
 
         return {"message": "Attendance submitted successfully", "count": len(students)}
 
@@ -655,10 +702,7 @@ async def submit_attendance(data: dict, authorization: str = Header(...)):
         return JSONResponse(status_code=500, content={"error": "Failed to submit attendance"})
 
 @app.post("/attendance/recognize")
-async def recognize_attendance(
-    images: list[UploadFile] = File(...),
-    authorization: str = Header(...)
-):
+async def recognize_attendance(images: list[UploadFile] = File(...), authorization: str = Header(...)):
     try:
         await get_current_user(authorization)
         if not images or len(images) > 10:
@@ -666,63 +710,33 @@ async def recognize_attendance(
             
         recognized_students = []
 
-        for img in images:
-            # Save the uploaded image temporarily
-            temp_path = f"temp_{img.filename}"
-            with open(temp_path, "wb") as f:
-                f.write(await img.read())
+        for image in images:
+            contents = await image.read()
+            nparr = np.frombuffer(contents, np.uint8)
+            cv_img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
             
-            # Detect faces in the image
-            faces = image.detect_faces(temp_path)
-            if not faces:
-                os.remove(temp_path)
+            if cv_img is None:
                 continue
+            
+            faces = face_recognition.detect_faces(cv_img)
+            
+            for face_obj in faces:
+                face_matrix = (face_obj["face"] * 255).astype(np.uint8)
                 
-            # Process each face
-            for face in faces:
-                print("for in faces")
-                # Extract face
-                face_img = image.extract_face(temp_path, face)
-                if not face_img:
-                    continue
-                    
-                # Save face to temp file
-                face_path = image.generate_temp_path()
-                face_img.save(face_path)
+                face_matrix = cv2.cvtColor(face_matrix, cv2.COLOR_RGB2BGR)
                 
-                # Generate embedding
-                embedding = image.generate_face_embedding(face_path)
+                embedding = face_recognition.generate_face_embedding(face_matrix)
                 if not embedding:
-                    os.remove(face_path)
                     continue
-                    
-                # Match against database
-                regid = await image.match_face(embedding)
+
+                regid = await face_recognition.match_face(embedding)
                 
                 if regid and regid not in [s["regid"] for s in recognized_students]:
-                    # Get student details
-                    student = await db.query(
-                        "SELECT name FROM students WHERE regid = $1",
-                        [regid]
-                    )
-                    if student:
-                        recognized_students.append({
-                            "regid": regid,
-                            "name": student[0]["name"],
-                            "confidence": 0.95  # Placeholder for actual confidence
-                        })
-                
-                # Clean up
-                os.remove(face_path)
-            
-            # Clean up
-            os.remove(temp_path)
-        recognized_students.append({
-            "regid": "24A21A05N0",
-            "name": "Vinay Katikireddy",
-            "confidence": 0.1
-        })
-        print(recognized_students)
+                    recognized_students.append({
+                        "regid": regid,
+                        "confidence": float(face_obj.get("confidence", 0.95))
+                    })
+
         return {"recognized_students": recognized_students}
         
     except HTTPException:

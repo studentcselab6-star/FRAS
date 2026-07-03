@@ -17,24 +17,28 @@ async def init_pool():
         statement_cache_size=0
     )
 
-async def query(sql, params=None):
+async def query(sql, params=None, transaction=False):
     global pool
-
     if pool is None:
         await init_pool()
     try:
         async with pool.acquire() as conn:
-            if sql.strip().upper().startswith(("INSERT", "UPDATE", "DELETE")):
-                await conn.execute(sql, *(params or []))
-                return
-
-            rows = await conn.fetch(sql, *(params or []))
-            return [dict(row) for row in rows]
+            if transaction:
+                async with conn.transaction():
+                    if sql.strip().upper().startswith(("INSERT", "UPDATE", "DELETE")):
+                        await conn.execute(sql, *(params or []))
+                        return
+                    rows = await conn.fetch(sql, *(params or []))
+                    return [dict(row) for row in rows]
+            else:
+                if sql.strip().upper().startswith(("INSERT", "UPDATE", "DELETE")):
+                    await conn.execute(sql, *(params or []))
+                    return
+                rows = await conn.fetch(sql, *(params or []))
+                return [dict(row) for row in rows]
     except Exception as e:
-        raise
-        """import traceback
-        traceback.print_exc()
-        print(e)"""
+        raise e
+
 async def close_pool():
     global pool
     if pool:

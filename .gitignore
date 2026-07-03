@@ -1,13 +1,5 @@
 .env
-swrn_pics/
-__pycache__/
-frontend/.env
-node_modules/
-dist/
-package-lock.json
+backend/__pycache__/
+frontend/node_modules/
+frontend/dist/
 frontend/package-lock.json
-venv/
-CLAUDE.md
-backend/assets/
-backend/temp/
-frontend/src/pages/AddStudent.tsx.bak

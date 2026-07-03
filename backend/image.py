@@ -1,127 +1,93 @@
 import sys
-import os
-import numpy as np
-from mtcnn import MTCNN
-from PIL import Image
-from typing import List, Dict, Optional, Tuple, Union
-import uuid
+from typing import List, Dict, Optional
 from deepface import DeepFace
-import tempfile
-
-# Initialize MTCNN detector
-DETECTOR = MTCNN()
-
-def detect_faces(image_path: str) -> List[Dict]:
-    """
-    Detect faces in an image using MTCNN.
-    Returns a list of face detections with bounding boxes and confidence scores.
-    """
-    image = Image.open(image_path).convert('RGB')
-    img_np = np.array(image)
-    faces = DETECTOR.detect_faces(img_np)
-    return faces
+# import os
+# import numpy as np
+# from datetime import datetime
+# import cv2
 
 def count_faces(image_path: str) -> int:
-    """Count the number of faces detected in an image."""
-    faces = detect_faces(image_path)
-    return len(faces)
-
-def extract_face(image_path: str, face: Dict) -> Optional[Image.Image]:
-    """
-    Extract a single face from an image using its bounding box.
-    Returns a cropped PIL Image of the face.
-    """
-    image = Image.open(image_path).convert('RGB')
-    img_np = np.array(image)
-    
-    x, y, width, height = face['box']
-    x2, y2 = x + width, y + height
-    
-    # Add padding to the face region
-    padding = max(width, height) // 4
-    x1 = max(0, x - padding)
-    y1 = max(0, y - padding)
-    x2 = min(img_np.shape[1], x2 + padding)
-    y2 = min(img_np.shape[0], y2 + padding)
-    
-    face_img = img_np[y1:y2, x1:x2]
-    return Image.fromarray(face_img)
-
-def generate_temp_path(extension: str = '.jpg') -> str:
-    """Generate a temporary file path."""
-    temp_dir = os.path.join(os.path.dirname(__file__), 'temp')
-    os.makedirs(temp_dir, exist_ok=True)
-    return os.path.join(temp_dir, f"{uuid.uuid4()}{extension}")
+    return len(detect_faces(image_path))
 
 def validate_face_count(image_path: str, expected_count: int = 1) -> bool:
-    """
-    Validate that exactly `expected_count` faces are detected in the image.
-    Returns True if the count matches, False otherwise.
-    """
     return count_faces(image_path) == expected_count
 
-def generate_face_embedding(image_path: str) -> Optional[List[float]]:
-    """
-    Generate a face embedding for the first detected face in the image.
-    Uses DeepFace with Facenet model to generate a 128D embedding.
-    Returns None if no face is detected.
-    """
-    try:
-        faces = detect_faces(image_path)
-        if not faces:
-            return None
-            
-        # Extract the first face
-        face_img = extract_face(image_path, faces[0])
-        if not face_img:
-            return None
-            
-        # Save the face to a temporary file
-        temp_path = generate_temp_path()
-        face_img.save(temp_path)
-        
-        # Generate embedding using DeepFace
-        embedding = DeepFace.represent(
-            img_path=temp_path,
-            model_name="Facenet",
-            enforce_detection=True
-        )
-        
-        # Clean up
-        os.remove(temp_path)
-        
-        return embedding[0]["embedding"] if embedding else None
-        
-    except Exception as e:
-        print(f"Error generating face embedding: {e}")
-        return None
-
-async def match_face(embedding: List[float], threshold: float = 0.6) -> Optional[str]:
-    """
-    Match a face embedding against stored embeddings in the database.
-    Returns the regid of the closest match if confidence > threshold, else None.
-    """
+async def match_face(embedding: List[float], threshold: float = 1.0) -> Optional[str]:
     from pgvector.asyncpg import register_vector
     from pgvector import Vector
     import db
     
-    # Ensure pgvector is registered for this connection
     async with db.pool.acquire() as conn:
         await register_vector(conn)
         
-        # Find the closest match
         matches = await conn.fetch(
             """
-            SELECT regid, 1 - (embedding <=> $1) as confidence
+            SELECT regid, embedding <-> $1 as distance
             FROM face_embeddings
-            ORDER BY embedding <=> $1
+            ORDER BY embedding <-> $1
             LIMIT 1
             """,
             Vector(embedding)
         )
         
-        if matches and matches[0]["confidence"] >= threshold:
+        if matches and matches[0]["distance"] <= threshold:
             return matches[0]["regid"]
+        return None
+
+def detect_faces(image_input) -> List[Dict]:
+    try:
+        face_objs = DeepFace.extract_faces(
+            img_path=image_input,
+            detector_backend="mtcnn",
+            enforce_detection=False
+        )
+
+        # Save detected face images locally
+        """if not isinstance(image_input, str):
+            output_img = image_input.copy()
+
+            for face in face_objs:
+                area = face.get("facial_area", {})
+
+                x = area.get("x", 0)
+                y = area.get("y", 0)
+                w = area.get("w", 0)
+                h = area.get("h", 0)
+
+                cv2.rectangle(
+                    output_img,
+                    (x, y),
+                    (x + w, y + h),
+                    (0, 255, 0),
+                    2
+                )
+            SAVE_DIR = r"C:\Users\vinay\Downloads"
+            os.makedirs(SAVE_DIR, exist_ok=True)
+
+            filename = f"faces_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}.jpg"
+            save_path = os.path.join(SAVE_DIR, filename)
+
+            cv2.imwrite(save_path, output_img)
+            print(f"Saved: {save_path}")"""
+
+        return face_objs
+    except Exception as e:
+        print(f"Detection error: {e}")
+        return []
+
+def generate_face_embedding(face_matrix) -> Optional[List[float]]:
+    try:
+        embeddings = DeepFace.represent(
+            img_path=face_matrix,
+            model_name="Facenet",
+            detector_backend="skip",
+            enforce_detection=False
+        )
+        if not embeddings:
+            return None
+        return embeddings[0]["embedding"]
+    except Exception as e:
+        print(f"Embedding failed: {e}")
         return None
 
 if __name__ == "__main__":

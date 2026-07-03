@@ -8,7 +8,8 @@ if (!API_BASE_URL) {
 }
 
 const api = axios.create({
-  baseURL: API_BASE_URL || 'https://fras-7xws.onrender.com',
+  //baseURL: API_BASE_URL || 'https://fras-7xws.onrender.com',
+  baseURL: 'http://localhost:3000',
   headers: {
     'Content-Type': 'application/json',
   },
@@ -72,7 +73,7 @@ export const authApi = {
     formData.append('username', username)
     formData.append('password', password)
     formData.append('email', email)
-
+    console.log(username, email, password)
     return api.post('/auth/register', formData, {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     });
