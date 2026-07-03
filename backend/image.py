@@ -1,10 +1,6 @@
 import sys
 from typing import List, Dict, Optional
 from deepface import DeepFace
-# import os
-# import numpy as np
-# from datetime import datetime
-# import cv2
 
 def count_faces(image_path: str) -> int:
     return len(detect_faces(image_path))
@@ -41,34 +37,6 @@ def detect_faces(image_input) -> List[Dict]:
             detector_backend="mtcnn",
             enforce_detection=False
         )
-
-        # Save detected face images locally
-        """if not isinstance(image_input, str):
-            output_img = image_input.copy()
-
-            for face in face_objs:
-                area = face.get("facial_area", {})
-
-                x = area.get("x", 0)
-                y = area.get("y", 0)
-                w = area.get("w", 0)
-                h = area.get("h", 0)
-
-                cv2.rectangle(
-                    output_img,
-                    (x, y),
-                    (x + w, y + h),
-                    (0, 255, 0),
-                    2
-                )
-            SAVE_DIR = r"C:\Users\vinay\Downloads"
-            os.makedirs(SAVE_DIR, exist_ok=True)
-
-            filename = f"faces_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}.jpg"
-            save_path = os.path.join(SAVE_DIR, filename)
-
-            cv2.imwrite(save_path, output_img)
-            print(f"Saved: {save_path}")"""
 
         return face_objs
     except Exception as e:
