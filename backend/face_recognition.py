@@ -26,7 +26,9 @@ async def match_face(embedding: List[float], threshold: float = 1.0) -> Optional
             Vector(embedding)
         )
         
-        if matches and matches[0]["distance"] <= threshold:
+        #if matches and matches[0]["distance"] <= threshold:
+        if matches and matches[0]["distance"]:
+            print(matches)
             return matches[0]["regid"]
         return None
 

@@ -1,11 +1,15 @@
 import asyncpg
 import os
 from dotenv import load_dotenv
+from pgvector.asyncpg import register_vector
 
 load_dotenv()
 
 pool = None
 DATABASE_URL = os.getenv("DATABASE_URL")
+
+async def init_connection(conn):
+    await register_vector(conn)
 
 async def init_pool():
     global pool
@@ -14,7 +18,8 @@ async def init_pool():
         min_size=1,
         max_size=int(os.getenv("DB_CONN_LIMIT", 10)),
         command_timeout=10,
-        statement_cache_size=0
+        statement_cache_size=0,
+        init=init_connection
     )
 
 async def query(sql, params=None, transaction=False):

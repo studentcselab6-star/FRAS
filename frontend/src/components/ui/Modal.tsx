@@ -42,7 +42,7 @@ export const Modal: React.FC<ModalProps> = ({
             </h2>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 transition-colors text-2xl"
+              className="text-gray-400 hover:text-gray-600 transition-colors text-4xl"
             >
               ×
             </button>

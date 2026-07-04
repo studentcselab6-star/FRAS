@@ -211,7 +211,7 @@ export const Camera = forwardRef<CameraHandle, CameraProps>(
                 <img
                   src={image.url}
                   alt="Captured"
-                  className="w-32 h-32 object-cover rounded-lg border-2 border-fras-gold"
+                  className="w-24 h-24 object-cover rounded-lg border-2 border-fras-gold"
                 />
                 <button
                   onClick={() => deleteImage(image.id)}
@@ -235,7 +235,7 @@ export const Camera = forwardRef<CameraHandle, CameraProps>(
           }
           size="lg"
           footer={
-            <>
+            <div className="flex flex-wrap gap-2 justify-center">
               <Button
                 variant="secondary"
                 className='text-yellow-500'
@@ -244,9 +244,6 @@ export const Camera = forwardRef<CameraHandle, CameraProps>(
               >
                 <i className="fas fa-camera-rotate" />
                 Switch Camera
-                <span className="ml-2 text-sm text-white/70">
-                  {facingMode === 'user' ? 'Front' : 'Rear'}
-                </span>
               </Button>
               <Button
                 variant="success"
@@ -257,15 +254,7 @@ export const Camera = forwardRef<CameraHandle, CameraProps>(
                 <i className="fas fa-camera" />
                 Capture{maxImages ? ` (${images.length}/${maxImages})` : ''}
               </Button>
-              <Button
-                variant="danger"
-                onClick={handleCloseModal}
-                type="button"
-              >
-                <i className="fas fa-times" />
-                Close
-              </Button>
-            </>
+            </div>
           }
         >
           {error ? (
@@ -274,14 +263,16 @@ export const Camera = forwardRef<CameraHandle, CameraProps>(
               <p className="text-red-500">{error}</p>
             </div>
           ) : (
-            <div className="flex flex-col items-center">
-              <video
-                ref={videoRef}
-                autoPlay
-                playsInline
-                className="w-full max-w-md rounded-lg bg-black"
-              />
-            </div>
+           <div className="flex justify-center">
+             <div className="aspect-square w-[70vw] max-w-72 rounded-full overflow-hidden bg-black border-2 border-fras-gold">
+               <video
+                 ref={videoRef}
+                 autoPlay
+                 playsInline
+                 className="w-full h-full object-cover"
+               />
+             </div>
+           </div>
           )}
         </Modal>
       </>

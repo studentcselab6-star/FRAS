@@ -48,10 +48,6 @@ const AddStudent = () => {
   const handleProfileImagesChange = (newImages: CapturedImage[]) => {
     setImage(newImages.length > 0 ? newImages[0] : null)
   }
-  
-  const handleFaceRecognitionImagesChange = (newImages: CapturedImage[]) => {
-    setFaceRecognitionImages(newImages)
-  }
 
   const removeImage = () => {
     if (image?.url) {
@@ -252,26 +248,31 @@ const AddStudent = () => {
               </div>
               {/* Actions */}
               <div className="flex flex-col gap-3">
-                 <div className="flex gap-3">
-                   <button
-                     type="button"
-                     onClick={openProfileCamera}
-                     className="px-4 py-2 bg-fras-gold text-white rounded-lg hover:bg-fras-gold-dark transition-colors flex items-center gap-2"
-                   >
-                     <i className="fas fa-camera" />
-                     Take new Photo
-                   </button>
-                  <span style={{ alignSelf: 'center' }}>OR</span>
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={openProfileCamera}
+                    className="w-full sm:w-auto px-4 py-2 bg-fras-gold text-white rounded-lg hover:bg-fras-gold-dark transition-colors flex items-center justify-center gap-2"
+                  >
+                    <i className="fas fa-camera" />
+                    Take New Photo
+                  </button>
+                            
+                  <span className="text-center text-gray-500">OR</span>
+                            
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+                    className="w-full sm:w-auto px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
                   >
                     <i className="fas fa-upload" />
                     Upload
                   </button>
                 </div>
-                <p className="text-xs text-gray-500">Clear front-facing photo. JPG/PNG accepted.</p>
+                            
+                <p className="text-xs text-gray-500">
+                  Clear front-facing photo. JPG/PNG accepted.
+                </p>
               </div>
             </div>
              <input
@@ -281,78 +282,6 @@ const AddStudent = () => {
                className="hidden"
                onChange={handleFileUpload}
              />
-           </div>
-            
-           {/* Face Recognition Photos */}
-           <div className="border-b border-gray-200 pb-6">
-             <h3 className="text-lg font-semibold text-gray-800 mb-4">Face Recognition Photos</h3>
-             <div className="flex flex-col gap-4">
-               <div className="flex items-start gap-6">
-                 {/* Preview */}
-                 <div className="flex-shrink-0">
-                   {faceRecognitionImages.length > 0 ? (
-                     <div className="relative group">
-                       <div className="w-32 h-32 rounded-lg border-2 border-fras-gold bg-gray-50 flex flex-wrap gap-1 p-1 overflow-hidden">
-                         {faceRecognitionImages.slice(0, 4).map((img, index) => (
-                           <img
-                             key={img.id}
-                             src={img.url}
-                             alt={`Face ${index + 1}`}
-                             className="w-14 h-14 object-cover rounded"
-                           />
-                         ))}
-                         {faceRecognitionImages.length > 4 && (
-                           <div className="w-14 h-14 bg-fras-gold/20 rounded flex items-center justify-center text-xs">
-                             +{faceRecognitionImages.length - 4}
-                           </div>
-                         )}
-                       </div>
-                     </div>
-                   ) : (
-                     <div className="w-32 h-32 rounded-lg border-2 border-dashed border-gray-300 flex flex-col items-center justify-center bg-gray-50">
-                       <i className="fas fa-users text-3xl text-gray-300 mb-1" />
-                       <span className="text-xs text-gray-400">No photos</span>
-                     </div>
-                   )}
-                 </div>
-                 {/* Actions */}
-                 <div className="flex flex-col gap-3">
-                   <div className="flex gap-3">
-                     <button
-                       type="button"
-                       onClick={openFaceRecognitionCamera}
-                       className="px-4 py-2 bg-fras-blue text-white rounded-lg hover:bg-fras-blue-dark transition-colors flex items-center gap-2"
-                     >
-                       <i className="fas fa-camera" />
-                       Take Photos
-                     </button>
-                     {faceRecognitionImages.length > 0 && (
-                       <button
-                         type="button"
-                         onClick={removeFaceRecognitionImages}
-                         className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors flex items-center gap-2"
-                       >
-                         <i className="fas fa-trash" />
-                         Clear All
-                       </button>
-                     )}
-                   </div>
-                   <p className="text-xs text-gray-500">Capture 1-10 photos from different angles for face recognition.</p>
-                 </div>
-               </div>
-               <div className="flex justify-end">
-                 <Button
-                   type="button"
-                   variant="secondary"
-                   onClick={generateEmbedding}
-                   isLoading={embeddingLoading}
-                   disabled={faceRecognitionImages.length === 0}
-                 >
-                   <i className="fas fa-robot mr-2" />
-                   {embeddingLoading ? 'Generating Embedding...' : 'Generate Face Recognition Embedding'}
-                 </Button>
-               </div>
-             </div>
            </div>
 
            {/* Personal Information */}
@@ -566,6 +495,49 @@ const AddStudent = () => {
             </div>
           </div>
 
+          {/* Face Recognition Photos */}
+           <div className="border-b border-gray-200 pb-6">
+             <h3 className="text-lg font-semibold text-gray-800 mb-4">Face Recognition Photos</h3>
+             <div className="flex flex-col gap-4">
+               <Camera ref={faceRecognitionCameraRef} onImagesChange={setFaceRecognitionImages} maxImages={FACE_RECOGNITION_LIMIT} showPreview={true} />
+               <div className="flex items-start gap-6">
+                   <div className="flex gap-3">
+                     <button
+                       type="button"
+                       onClick={openFaceRecognitionCamera}
+                       className="px-4 py-2 bg-fras-blue text-white rounded-lg hover:bg-fras-blue-dark transition-colors flex items-center gap-2"
+                     >
+                       <i className="fas fa-camera" />
+                       Take Photos
+                     </button>
+                     {faceRecognitionImages.length > 0 && (
+                       <button
+                         type="button"
+                         onClick={removeFaceRecognitionImages}
+                         className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors flex items-center gap-2"
+                       >
+                         <i className="fas fa-trash" />
+                         Clear All
+                       </button>
+                     )}
+                   </div>
+                   <p className="text-xs text-gray-500">Capture 1-10 photos from different angles for face recognition.</p>
+               </div>
+               <div className="flex justify-end">
+                 <Button
+                   type="button"
+                   variant="secondary"
+                   onClick={generateEmbedding}
+                   isLoading={embeddingLoading}
+                   disabled={faceRecognitionImages.length === 0}
+                 >
+                   <i className="fas fa-robot mr-2" />
+                   {embeddingLoading ? 'Generating Embedding...' : 'Generate Face Recognition Embedding'}
+                 </Button>
+               </div>
+             </div>
+           </div>
+
           {/* Submit Button */}
           <div className="flex justify-end gap-4">
             <Button
@@ -599,7 +571,6 @@ const AddStudent = () => {
         </form>
       </div>
       <Camera ref={profileCameraRef} onImagesChange={handleProfileImagesChange} maxImages={PROFILE_IMAGE_LIMIT} showPreview={false} />
-      <Camera ref={faceRecognitionCameraRef} onImagesChange={handleFaceRecognitionImagesChange} maxImages={FACE_RECOGNITION_LIMIT} showPreview={false} />
     </div>
   )
 }

@@ -16,11 +16,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from pgvector.asyncpg import register_vector
 from supabase import create_client
 
 import db
-import image as face_recognition
+import face_recognition
 
 load_dotenv()
 
@@ -48,10 +47,6 @@ async def lifespan(app: FastAPI):
     
     if db.pool is None:
         raise RuntimeError("Failed to initialize database pool")
-    
-    # Register pgvector on a single connection from the pool
-    async with db.pool.acquire() as conn:
-        await register_vector(conn)
     
     yield
     await db.close_pool()
@@ -282,7 +277,7 @@ async def add_student(
                         VALUES ($1, $2)
                         ON CONFLICT (regid) DO UPDATE SET embedding = EXCLUDED.embedding
                         """,
-                        [regid, Vector(embedding_list)],
+                        [regid, embedding_list],
                         transaction=True
                     )
             except Exception as e:

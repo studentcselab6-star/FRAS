@@ -81,7 +81,7 @@ export const Navbar: React.FC<NavbarProps> = ({ user, onLogout }) => {
             </div>
             <button
               onClick={() => navigate('/profile')}
-              className="w-10 h-10 bg-white/6 text-fras-gold rounded-lg flex items-center justify-center hover:bg-white/20 transition-colors"
+              className="w-10 h-10 bg-white/6 text-fras-gold border border-fras-gold rounded-lg flex items-center justify-center hover:bg-white/20 transition-colors"
               title="Profile"
             >
               <i className="fas fa-user" />
