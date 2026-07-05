@@ -17,5 +17,5 @@ mtcnn==1.0.0
 Pillow==12.2.0
 tensorflow==2.21.0
 tf-keras
-numpy==2.5.0
+numpy
 opencv-python==4.13.0.92
