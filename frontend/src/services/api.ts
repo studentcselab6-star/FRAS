@@ -4,7 +4,7 @@ import type { ApiError } from '../types'
 const API_BASE_URL = import.meta.env.VITE_BACKEND_URL
 
 if (!API_BASE_URL) {
-  console.warn('VITE_BACKEND_URL not set, using default https://fras-7xws.onrender.com')
+  console.warn('VITE_BACKEND_URL not set, using default https://fras-b01b.onrender.com')
 }
 
 const api = axios.create({
