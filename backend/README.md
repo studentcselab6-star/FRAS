@@ -1,3 +1,11 @@
+---
+title: Face Recognition
+emoji: 🐨
+colorFrom: red
+colorTo: pink
+sdk: docker
+pinned: false
+---
 # FRAS Backend - Face Recognition Attendance System
 
 FastAPI backend for the Face Recognition Attendance System.
