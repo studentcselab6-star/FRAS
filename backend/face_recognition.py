@@ -8,14 +8,14 @@ def count_faces(image_path: str) -> int:
 def validate_face_count(image_path: str, expected_count: int = 1) -> bool:
     return count_faces(image_path) == expected_count
 
-async def match_face(embedding: List[float], threshold: float = 1.0) -> Optional[str]:
+async def match_face(embedding: List[float], threshold: float = 12.0) -> Optional[str]:
     from pgvector.asyncpg import register_vector
     from pgvector import Vector
     import db
-    
+
     async with db.pool.acquire() as conn:
         await register_vector(conn)
-        
+
         matches = await conn.fetch(
             """
             SELECT regid, embedding <-> $1 as distance
@@ -25,9 +25,8 @@ async def match_face(embedding: List[float], threshold: float = 1.0) -> Optional
             """,
             Vector(embedding)
         )
-        
-        #if matches and matches[0]["distance"] <= threshold:
-        if matches and matches[0]["distance"]:
+
+        if matches and matches[0]["distance"] <= threshold:
             print(matches)
             return matches[0]["regid"]
         return None
