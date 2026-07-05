@@ -8,8 +8,8 @@ if (!API_BASE_URL) {
 }
 
 const api = axios.create({
-  baseURL: API_BASE_URL || 'https://fras-b01b.onrender.com',
-  //baseURL: 'http://localhost:3000',
+  //baseURL: API_BASE_URL || 'https://fras-b01b.onrender.com',
+  baseURL: 'https://vinaykatikireddy-face-recognition.hf.space/',
   headers: {
     'Content-Type': 'application/json',
   },
