@@ -91,10 +91,6 @@ const Profile = () => {
               <span className="font-medium text-gray-600">Role</span>
               <span className="col-span-2 text-gray-800">Administrator</span>
             </div>
-            <div className="grid grid-cols-3 gap-4 py-3 border-b border-gray-200">
-              <span className="font-medium text-gray-600">Last Login</span>
-              <span className="col-span-2 text-gray-800">Today</span>
-            </div>
           </div>
 
           <div className="mt-8 flex justify-end">

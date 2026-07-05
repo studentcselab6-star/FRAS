@@ -281,7 +281,9 @@ const Students = memo(() => {
                   <td className="px-6 py-4 whitespace-nowrap">{attendanceData.total_working_periods}</td>
                   <td className="px-6 py-4 whitespace-nowrap">{attendanceData.attended_periods}</td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    {attendanceData.attendance_percentage.toFixed(2)}%
+                    {attendanceData.total_working_periods > 0
+                      ? (attendanceData.attended_periods * 100) / attendanceData.total_working_periods
+                      : 0}%
                   </td>
                 </tr>
               </tbody>

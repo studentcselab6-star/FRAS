@@ -42,7 +42,7 @@ export const Navbar: React.FC<NavbarProps> = ({ user, onLogout }) => {
 
   return (
     <nav className="bg-fras-navy-gradient backdrop-blur-xl border-b border-fras-gold shadow-2xl sticky top-0 z-40">
-      <div className="max-w-[1600px] mx-auto px-5 py-3">
+      <div className="max-w-[1400px] mx-auto px-5 py-3">
         <div className="flex items-center justify-between">
           {/* Logo */}
           <div className="text-2xl font-bold bg-fras-gold-gradient bg-clip-text text-transparent">

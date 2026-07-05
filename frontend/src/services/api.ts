@@ -4,12 +4,12 @@ import type { ApiError } from '../types'
 const API_BASE_URL = import.meta.env.VITE_BACKEND_URL
 
 if (!API_BASE_URL) {
-  console.warn('VITE_BACKEND_URL not set, using default https://fras-b01b.onrender.com')
+  console.warn('VITE_BACKEND_URL not set, using default vinaykatikireddy-face-recognition.hf.space')
 }
 
 const api = axios.create({
-  //baseURL: API_BASE_URL || 'https://fras-b01b.onrender.com',
-  baseURL: 'https://vinaykatikireddy-face-recognition.hf.space/',
+  baseURL: API_BASE_URL || 'https://vinaykatikireddy-face-recognition.hf.space/',
+  //baseURL: 'http://localhost:3000',
   headers: {
     'Content-Type': 'application/json',
   },
@@ -46,7 +46,7 @@ export const getApiErrorMessage = (error: unknown): string => {
   if (axios.isAxiosError(error)) {
     const axiosError = error as AxiosError<{ error?: string; message?: string }>
     return axiosError.response?.data?.error || 
-           axiosError.response?.data?.message || 
+           axiosError.response?.data?.message ||
            axiosError.message || 
            'An unexpected error occurred'
   }
@@ -101,7 +101,10 @@ export const studentApi = {
 
 // Attendance APIs
 export const attendanceApi = {
-  submit: (data: { class: string; period: number; students: { regid: string; status: number }[] }) => api.post('/attendance', data),
+  submit: (data: { class: string; period: number; students: { regid: string; status: number }[] }) => {
+    console.log(data);
+    return api.post('/attendance', data);
+  },
 
   getAttendanceSummary: (regid: string) => api.get(`/attendance/summary/${encodeURIComponent(regid)}`),
 

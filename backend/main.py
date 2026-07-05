@@ -113,7 +113,7 @@ async def enrich_with_images(students):
 # ============ ROUTES ============
 @app.get("/")
 def home():
-    return {"message": "API is running..."}
+    return {"message": "Backend API is running..."}
 
 # ============ AUTH ENDPOINTS ============
 
@@ -121,7 +121,7 @@ def home():
 async def login(username: str = Form(...), password: str = Form(...)):
     try:
         if not username or not password:
-            raise HTTPException(status_code=401, detail="Username and password are required")
+            raise HTTPException(status_code=401)
 
         user = await db.query(
             "SELECT * FROM logins WHERE username = $1",
@@ -140,7 +140,6 @@ async def login(username: str = Form(...), password: str = Form(...)):
         token = jwt.encode(to_encode, JWT_SECRET, algorithm=JWT_ALGORITHM)
         return {
             "access_token": token,
-            "token_type": "bearer",
             "username": username
         }
     except HTTPException:
@@ -169,7 +168,7 @@ async def register(username: str = Form(...), email: str = Form(...), password: 
             "INSERT INTO logins (username, email, password) VALUES ($1, $2, $3)",
             [username, email, hashed_password]
         )
-        return {"message": "User registered successfully", "username": username}
+        return {"message": "User registered successfully"}
     except ValueError as err:
         raise HTTPException(status_code=400, detail=str(err))
     except HTTPException:
@@ -669,22 +668,17 @@ async def submit_attendance(data: dict, authorization: str = Header(...)):
                 for student in students:
                     regid = (student.get("regid") or "").strip()
                     status = student.get("status", 1)
+
                     await conn.execute(
                         """
                         INSERT INTO attendance (regid, period, status, class, marked_by)
                         VALUES ($1, $2, $3, $4, $5)
                         ON CONFLICT (regid, date, period) DO UPDATE SET status = EXCLUDED.status
                         """,
-                        [
-                            regid,
-                            period,
-                            status,
-                            class_name,
-                            current_user
-                        ],
+                        regid, period, status, class_name, current_user
                     )
 
-        return {"message": "Attendance submitted successfully", "count": len(students)}
+        return {"message": "Attendance submitted successfully"}
 
     except ValueError as err:
         raise HTTPException(status_code=400, detail=str(err))
@@ -768,16 +762,9 @@ async def get_attendance_summary(regid: str, authorization: str = Header(...)):
         )
         attended_periods = int(attended_result[0]["count"]) if attended_result else 0
 
-        # Calculate attendance percentage
-        if total_working_periods == 0:
-            attendance_percentage = 0.0
-        else:
-            attendance_percentage = round((attended_periods / total_working_periods) * 100, 2)
-
         return {
             "total_working_periods": total_working_periods,
-            "attended_periods": attended_periods,
-            "attendance_percentage": attendance_percentage
+            "attended_periods": attended_periods
         }
     except ValueError as err:
         raise HTTPException(status_code=400, detail=str(err))

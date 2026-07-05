@@ -38,7 +38,7 @@ const Login = () => {
     try {
       const response = await authApi.login(formData.username, formData.password)
       
-      const token = response.data.access_token || response.data.token
+      const token = response.data.access_token
       if (!token) {
         throw new Error('No authentication token received')
       }

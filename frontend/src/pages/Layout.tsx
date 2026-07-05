@@ -73,7 +73,7 @@ if (
       <div className="min-h-screen">
         <Navbar user={user} onLogout={handleLogout} />
         
-        <div className="max-w-[1600px] mx-auto px-5 py-8">
+        <div className="max-w-[1400px] mx-auto px-5 py-8">
           <div className="flex flex-col md:flex-row gap-8">
             {/* Sidebar - Hidden on mobile */}
             <aside className="hidden md:block w-64 flex-shrink-0">
