@@ -60,7 +60,7 @@ export const Navbar: React.FC<NavbarProps> = ({ user, onLogout }) => {
           </button>
           <button
               onClick={() => navigate('/profile')}
-              className="md:hidden w-10 h-10 bg-white/6 text-fras-gold rounded-lg flex items-center justify-center hover:bg-white/20 transition-colors"
+              className="md:hidden w-10 h-10 bg-white/6 text-fras-gold border border-fras-gold rounded-lg flex items-center justify-center hover:bg-white/20 transition-colors"
               title="Profile"
             >
               <i className="fas fa-user" />
@@ -98,9 +98,9 @@ export const Navbar: React.FC<NavbarProps> = ({ user, onLogout }) => {
 
         {/* Mobile navigation */}
         <div
-          className={`md:hidden mt-3 flex flex-col gap-2 overflow-hidden transition-all duration-300 ${
+          className={`md:hidden flex flex-col gap-2 overflow-hidden transition-all duration-300 ${
             isMenuOpen
-              ? 'max-h-150 opacity-100 translate-y-0'
+              ? 'max-h-150 mt-3 opacity-100 translate-y-0'
               : 'max-h-0 opacity-0 -translate-y-2'
           }`}
         >
