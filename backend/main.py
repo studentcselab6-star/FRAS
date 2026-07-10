@@ -722,7 +722,7 @@ async def recognize_attendance(images: list[UploadFile] = File(...), authorizati
                 face_matrix = cv2.cvtColor(face_matrix, cv2.COLOR_RGB2BGR)
                 
                 embedding = face_recognition.generate_face_embedding(face_matrix)
-                if not embedding:
+                if not embedding.all():
                     continue
 
                 regid = await face_recognition.match_face(embedding, threshold=float(os.getenv("FACE_MATCHING_THRESHOLD", "12.0")))
