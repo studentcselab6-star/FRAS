@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta, timezone
 
@@ -17,6 +18,9 @@ from fastapi.responses import JSONResponse
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from supabase import create_client
+
+# Configure logging
+logging.basicConfig(level=logging.ERROR)
 
 import db
 import face_recognition
@@ -707,10 +711,13 @@ async def recognize_attendance(images: list[UploadFile] = File(...), authorizati
             if cv_img is None:
                 continue
             
-            faces = face_recognition.detect_faces(cv_img)
+            faces = face_recognition.detect_faces(cv_img, align=True)
             
             for face_obj in faces:
                 face_matrix = (face_obj["face"] * 255).astype(np.uint8)
+                
+                # Resize to 160x160 (Facenet input size)
+                face_matrix = cv2.resize(face_matrix, (160, 160))
                 
                 face_matrix = cv2.cvtColor(face_matrix, cv2.COLOR_RGB2BGR)
                 
@@ -718,7 +725,7 @@ async def recognize_attendance(images: list[UploadFile] = File(...), authorizati
                 if not embedding:
                     continue
 
-                regid = await face_recognition.match_face(embedding)
+                regid = await face_recognition.match_face(embedding, threshold=float(os.getenv("FACE_MATCHING_THRESHOLD", "12.0")))
                 
                 if regid and regid not in [s["regid"] for s in recognized_students]:
                     recognized_students.append({
@@ -731,8 +738,8 @@ async def recognize_attendance(images: list[UploadFile] = File(...), authorizati
     except HTTPException:
         raise
     except Exception as err:
-        print(f"Face recognition error: {err}\n{traceback.format_exc()}")
-        return JSONResponse(status_code=500, content={"error": "Face recognition failed"})
+        logging.error(f"Face recognition error: {err}\n{traceback.format_exc()}")
+        return JSONResponse(status_code=500, content={"error": "Face recognition failed", "details": str(err)})
 
 @app.get("/attendance/summary/{regid}")
 async def get_attendance_summary(regid: str, authorization: str = Header(...)):

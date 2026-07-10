@@ -21,6 +21,14 @@ async def init_pool():
         statement_cache_size=0,
         init=init_connection
     )
+    
+    # Create ivfflat index for the embedding column
+    async with pool.acquire() as conn:
+        await conn.execute("""
+            CREATE INDEX IF NOT EXISTS face_embeddings_embedding_idx
+            ON face_embeddings USING ivfflat (embedding vector_cosine_ops)
+            WITH (lists = 100);
+        """)
 
 async def query(sql, params=None, transaction=False):
     global pool
