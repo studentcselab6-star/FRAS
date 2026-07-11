@@ -10,6 +10,10 @@ from deepface import DeepFace
 from pgvector import Vector
 import db
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 
@@ -26,25 +30,25 @@ async def match_face(embedding: List[float]) -> Optional[str]:
     threshold = float(os.getenv("FACE_MATCHING_THRESHOLD", "0.68"))
 
     async with db.pool.acquire() as conn:
-        query = """
+        print(embedding)
+        match = await conn.fetchrow(
+            """
             SELECT regid, distance
             FROM (
                 SELECT regid, (embedding <=> $1) AS distance
                 FROM face_embeddings
             ) sub
-            WHERE distance <= $2
             ORDER BY distance ASC
             LIMIT 1
-        """
-
-        match = await conn.fetchrow(query, embedding, 1 - threshold)
-
+            """,
+            embedding)#, 1 - threshold)
+        #WHERE distance <= $2
         if not match:
             print(f"No match found within threshold {threshold}.")
             return None
 
         print(f"Match found: RegID={match['regid']}, Distance={match['distance']:.4f}")
-        return match["regid"]
+        return match
 
 def detect_faces(image_input, align: bool = True) -> List[Dict]:
     try:
@@ -83,8 +87,7 @@ def generate_face_embedding(face_matrix: np.ndarray) -> Optional[np.ndarray]:
 
         if not embeddings:
             return None
-        
-        print(embeddings)
+
         embedding = embeddings[0]["embedding"]
         norm = np.linalg.norm(embedding)
 

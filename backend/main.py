@@ -588,7 +588,7 @@ async def generate_embedding(images: list[UploadFile] = File(...), regid: str = 
             
             # Generate the embedding by passing the matrix directly
             embedding = face_recognition.generate_face_embedding(cv_img)
-            if embedding:
+            if embedding.all():
                 embeddings.append(embedding)
         
         if not embeddings:
@@ -685,17 +685,18 @@ async def recognize_attendance(images: list[UploadFile] = File(...), authorizati
                 face_matrix = cv2.cvtColor(face_matrix, cv2.COLOR_RGB2BGR)
                 
                 embedding = face_recognition.generate_face_embedding(face_matrix)
-                print("embedding: ", embedding)
+
                 if not embedding.all() or len(embedding) != 512:
-                    print("continuing..")
+                    print("continuing.")
                     continue
 
-                regid = await face_recognition.match_face(embedding)
+                match = await face_recognition.match_face(embedding)
+                print(match)
 
-                if regid and regid not in [s["regid"] for s in recognized_students]:
+                if match and match["regid"] not in [s["regid"] for s in recognized_students]:
                     recognized_students.append({
-                        "regid": regid,
-                        "confidence": float(face_obj.get("confidence", 0.95))
+                        "regid": match["regid"],
+                        "confidence": float(1 - match["distance"])
                     })
 
         return {"recognized_students": recognized_students}

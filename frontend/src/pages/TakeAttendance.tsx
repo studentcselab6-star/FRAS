@@ -132,18 +132,8 @@ const TakeAttendance: React.FC = () => {
             )
             
             setRecognizedStudents(response.data.recognized_students)
-            
-            // Count students in each confidence range
-            const highConfidence = response.data.recognized_students.filter(s => s.confidence >= 0.7).length
-            const mediumConfidence = response.data.recognized_students.filter(s => s.confidence >= 0.3 && s.confidence < 0.7).length
-            const lowConfidence = response.data.recognized_students.filter(s => s.confidence < 0.3).length
-            
-            toast.success(
-                `Recognized ${response.data.recognized_students.length} student(s): 
-                ${highConfidence} high confidence (≥70%), 
-                ${mediumConfidence} medium confidence (30-70%), 
-                ${lowConfidence} low confidence (<30%)`
-            )
+
+            toast.success(`Recognized ${response.data.recognized_students.length} student(s)`)
         } catch (err: any) {
             toast.error(err?.response?.data?.detail || 'Face recognition failed')
         } finally {
