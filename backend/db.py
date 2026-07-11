@@ -21,9 +21,6 @@ async def init_pool():
         statement_cache_size=0,
         init=init_connection
     )
-    
-    async with pool.acquire() as conn:
-        await register_vector(conn)
 
 async def query(sql, params=None, transaction=False):
     global pool

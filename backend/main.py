@@ -103,13 +103,9 @@ async def enrich_with_images(students):
     
     for student in students:
         try:
-            print("00")
             filename = f"{student['batch']}/{student['programme']}-{student['class_section']}/{student['regid']}.jpg"
-            print("11")
             signed = supabase.storage.from_(BUCKET).create_signed_url(filename, 360)
-            print("22")
             student["image"] = signed["signedURL"]
-            print("33")
         except Exception as e:
             student["image"] = None
     return students
@@ -320,8 +316,8 @@ async def filter_students(programme: str, batch: str, section: str, semester: st
         semester = validators.validate(semester, "Semester", validators.VALID_SEMESTERS)
 
         students = await db.query(
-            f"SELECT * FROM students WHERE programme = ${1} AND batch = ${2} AND section = ${3} AND semester = ${4} ORDER BY regid",
-            programme, batch, section, semester
+            "SELECT * FROM students WHERE programme = $1 AND batch = $2 AND class_section = $3 AND semester = $4 ORDER BY regid",
+            [programme, batch, section, semester]
         )
         return await enrich_with_images(students)
     except HTTPException:
