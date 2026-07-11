@@ -117,7 +117,7 @@ export const useToast = () => {
   const addToast = (
     message: string,
     type: Toast['type'] = 'info',
-    duration: number = 3000
+    duration: number = 1500
   ) => {
     const id = crypto.randomUUID()
 
@@ -187,7 +187,7 @@ style.textContent = `
   }
 
   .animate-toast-progress {
-    animation: toast-progress 3s linear forwards !important;
+    animation: toast-progress 1.5s linear forwards !important;
   }
 `
 

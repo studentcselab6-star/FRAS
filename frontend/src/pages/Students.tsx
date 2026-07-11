@@ -89,6 +89,8 @@ const Students = memo(() => {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="bg-fras-navy text-gold placeholder-gold/50 border-gold"
+            minLength={3}
+            required
           />
         </div>
         <Button type="submit" variant="primary">

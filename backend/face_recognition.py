@@ -7,6 +7,8 @@ import numpy as np
 from typing import List, Dict, Optional
 from deepface import DeepFace
 
+from pgvector import Vector
+import db
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -20,38 +22,29 @@ def validate_face_count(image_path: str, expected_count: int = 1) -> bool:
     return count_faces(image_path) == expected_count
 
 
-from pgvector.asyncpg import register_vector
-from pgvector import Vector
-import db
-
-
-async def match_face(embedding: List[float], threshold: float = None) -> Optional[str]:
-    if threshold is None:
-        threshold = float(os.getenv("FACE_MATCHING_THRESHOLD", "0.6"))
+async def match_face(embedding: List[float]) -> Optional[str]:
+    threshold = float(os.getenv("FACE_MATCHING_THRESHOLD", "0.68"))
 
     async with db.pool.acquire() as conn:
-        await register_vector(conn)
-
-        matches = await conn.fetch(
-            """
-            SELECT regid, embedding <-> $1 as distance
-            FROM face_embeddings
-            ORDER BY embedding <-> $1
+        query = """
+            SELECT regid, distance
+            FROM (
+                SELECT regid, (embedding <=> $1) AS distance
+                FROM face_embeddings
+            ) sub
+            WHERE distance <= $2
+            ORDER BY distance ASC
             LIMIT 1
-            """,
-            Vector(embedding)
-        )
+        """
 
-        if not matches:
-            print("No matches found in the database.")
+        match = await conn.fetchrow(query, embedding, 1 - threshold)
+
+        if not match:
+            print(f"No match found within threshold {threshold}.")
             return None
 
-        if matches[0]["distance"] <= threshold:
-            print(f"Match found: RegID={matches[0]['regid']}, Distance={matches[0]['distance']:.4f}")
-            return matches[0]["regid"]
-        print(f"No match found. Closest distance: {matches[0]['distance']:.4f} (Threshold: {threshold})")
-        return None
-
+        print(f"Match found: RegID={match['regid']}, Distance={match['distance']:.4f}")
+        return match["regid"]
 
 def detect_faces(image_input, align: bool = True) -> List[Dict]:
     try:
@@ -60,7 +53,7 @@ def detect_faces(image_input, align: bool = True) -> List[Dict]:
 
         face_objs = DeepFace.extract_faces(
             img_path=image_input,
-            detector_backend="retinaface",  # More robust than mtcnn
+            detector_backend="retinaface",
             enforce_detection=True,
             align=align
         )
@@ -70,14 +63,13 @@ def detect_faces(image_input, align: bool = True) -> List[Dict]:
         logging.error(f"Detection error: {e}", exc_info=True)
         return []
 
-
 def generate_face_embedding(face_matrix: np.ndarray) -> Optional[np.ndarray]:
     try:
         if not isinstance(face_matrix, np.ndarray):
             raise ValueError("face_matrix must be a numpy array")
 
         # Preprocessing
-        face_matrix = cv2.resize(face_matrix, (160, 160))  # Standardize size for ArcFace
+        face_matrix = cv2.resize(face_matrix, (112, 112))  # Standardize size for ArcFace
         if len(face_matrix.shape) == 3 and face_matrix.shape[2] == 3:
             face_matrix = cv2.cvtColor(face_matrix, cv2.COLOR_BGR2RGB)  # Convert to RGB
 
@@ -88,13 +80,19 @@ def generate_face_embedding(face_matrix: np.ndarray) -> Optional[np.ndarray]:
             detector_backend="skip",
             enforce_detection=False
         )
+
         if not embeddings:
             return None
+        
+        print(embeddings)
         embedding = embeddings[0]["embedding"]
         norm = np.linalg.norm(embedding)
+
         if norm == 0:
             return None
+        
         embedding /= norm
+
         return embedding
     except Exception as e:
         logging.error(f"Embedding failed: {e}", exc_info=True)
@@ -143,7 +141,6 @@ async def test_face_recognition(image_path: str) -> None:
     # Match face
     await db.init_pool()  # Ensure the pool is initialized
     async with db.pool.acquire() as conn:
-        await register_vector(conn)
         matches = await conn.fetch(
             """
             SELECT regid, embedding <-> $1 as distance

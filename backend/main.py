@@ -1,4 +1,3 @@
-import logging
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta, timezone
 
@@ -18,9 +17,7 @@ from fastapi.responses import JSONResponse
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from supabase import create_client
-
-# Configure logging
-logging.basicConfig(level=logging.ERROR)
+from pgvector.asyncpg import register_vector
 
 import db
 import face_recognition
@@ -33,7 +30,7 @@ SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 JWT_SECRET = os.getenv("JWT_SECRET")
 JWT_ALGORITHM = "HS256"
-JWT_EXPIRY_HOURS = 100
+JWT_EXPIRY_HOURS = 1
 BUCKET = "student_images"
 
 # Initialize Supabase
@@ -51,7 +48,7 @@ async def lifespan(app: FastAPI):
     
     if db.pool is None:
         raise RuntimeError("Failed to initialize database pool")
-    
+
     yield
     await db.close_pool()
 
@@ -60,7 +57,6 @@ app = FastAPI(lifespan=lifespan)
 origins = [
     "https://fras-virid.vercel.app",
     "https://vinaykatikireddy.is-a.dev",
-    "https://fras.vinaykatikireddy.is-a.dev",
     "http://localhost:5173",
     "http://127.0.0.1:5173",
     "http://localhost:4173"
@@ -107,9 +103,13 @@ async def enrich_with_images(students):
     
     for student in students:
         try:
+            print("00")
             filename = f"{student['batch']}/{student['programme']}-{student['class_section']}/{student['regid']}.jpg"
+            print("11")
             signed = supabase.storage.from_(BUCKET).create_signed_url(filename, 360)
+            print("22")
             student["image"] = signed["signedURL"]
+            print("33")
         except Exception as e:
             student["image"] = None
     return students
@@ -132,10 +132,7 @@ async def login(username: str = Form(...), password: str = Form(...)):
             [username]
         )
 
-        if not user or len(user) == 0:
-            raise HTTPException(status_code=401, detail="Invalid credentials")
-
-        if not pwd_context.verify(password, user[0]["password"]):
+        if not user or len(user) == 0 or not pwd_context.verify(password, user[0]["password"]):
             raise HTTPException(status_code=401, detail="Invalid credentials")
 
         # Create JWT token
@@ -154,7 +151,6 @@ async def login(username: str = Form(...), password: str = Form(...)):
 
 @app.post("/auth/register")
 async def register(username: str = Form(...), email: str = Form(...), password: str = Form(...)):
-    """User registration"""
     try:
         username = validators.validate_username(username)
         email = validators.validate_email(email)
@@ -255,50 +251,36 @@ async def add_student(
         validators.validate_image(image)
 
         # Use transaction for all database operations
-        if embedding:
-            try:
-                embedding_list = json.loads(embedding)
-                if isinstance(embedding_list, list) and len(embedding_list) == 128:
-                    from pgvector import Vector
-                    
-                    await db.query(
-                        """
-                        INSERT INTO students (
-                            name, regid, email, mobile, dob, class_section,
-                            father_mobile, gender, lab_section, programme,
-                            regulation, batch, residence, semester
-                        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
-                        """,
-                        [name, regid, email, mobile, dob_parsed, class_section, father_mobile,
-                         gender, lab_section, programme, regulation, batch, residence, semester],
-                        transaction=True
-                    )
-                    
-                    await db.query(
-                        """
-                        INSERT INTO face_embeddings (regid, embedding)
-                        VALUES ($1, $2)
-                        ON CONFLICT (regid) DO UPDATE SET embedding = EXCLUDED.embedding
-                        """,
-                        [regid, embedding_list],
-                        transaction=True
-                    )
-            except Exception as e:
-                print(f"Error storing embedding: {e}")
-                raise HTTPException(status_code=500, detail="Failed to store face embedding")
-        else:
-            await db.query(
-                """
-                INSERT INTO students (
-                    name, regid, email, mobile, dob, class_section,
-                    father_mobile, gender, lab_section, programme,
-                    regulation, batch, residence, semester
-                ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
-                """,
-                [name, regid, email, mobile, dob_parsed, class_section, father_mobile,
-                 gender, lab_section, programme, regulation, batch, residence, semester],
-                transaction=True
-            )
+        try:
+            embedding_list = json.loads(embedding)
+            if isinstance(embedding_list, list) and len(embedding_list) == 512:
+                from pgvector import Vector
+                
+                await db.query(
+                    """
+                    INSERT INTO students (
+                        name, regid, email, mobile, dob, class_section,
+                        father_mobile, gender, lab_section, programme,
+                        regulation, batch, residence, semester
+                    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+                    """,
+                    [name, regid, email, mobile, dob_parsed, class_section, father_mobile,
+                     gender, lab_section, programme, regulation, batch, residence, semester],
+                    transaction=True
+                )
+                
+                await db.query(
+                    """
+                    INSERT INTO face_embeddings (regid, embedding)
+                    VALUES ($1, $2)
+                    ON CONFLICT (regid) DO UPDATE SET embedding = EXCLUDED.embedding
+                    """,
+                    [regid, embedding_list],
+                    transaction=True
+                )
+        except Exception as e:
+            print(f"Error adding new student: {e}")
+            raise HTTPException(status_code=500, detail="Failed to add new student")
 
         # Upload profile image to Supabase if provided
         if image and supabase:
@@ -320,7 +302,7 @@ async def add_student(
                 raise HTTPException(status_code=500, detail="Failed to upload profile image")
 
     except ValueError as err:
-        raise HTTPException(status_code=400, detail=str(err))
+        raise HTTPException(status_code=400, detail=str(err)) from None
     except HTTPException:
         raise
     except Exception as err:
@@ -328,35 +310,18 @@ async def add_student(
         return JSONResponse(status_code=500, content={"error": "Failed to add student"})
 
 @app.get("/students/filter")
-async def filter_students(programme: str = "", batch: str = "", section: str = "", semester: str = "", authorization: str = Header(...)):
+async def filter_students(programme: str, batch: str, section: str, semester: str, authorization: str = Header(...)):
     try:
         await get_current_user(authorization)
-        conditions = []
-        params = []
-        idx = 1
 
-        if programme:
-            conditions.append(f"programme = ${idx}")
-            params.append(programme)
-            idx += 1
-        if batch:
-            conditions.append(f"batch = ${idx}")
-            params.append(batch)
-            idx += 1
-        if section:
-            conditions.append(f"class_section = ${idx}")
-            params.append(section)
-            idx += 1
-        if semester:
-            conditions.append(f"semester = ${idx}")
-            params.append(semester)
-            idx += 1
-
-        where_clause = " AND ".join(conditions) if conditions else "FALSE"
+        programme = validators.validate(programme, "Programme", validators.VALID_PROGRAMMES)
+        batch = validators.validate(batch, "Batch", validators.VALID_BATCHES)
+        section = validators.validate(section, "Class section", validators.VALID_SECTIONS)
+        semester = validators.validate(semester, "Semester", validators.VALID_SEMESTERS)
 
         students = await db.query(
-            f"SELECT * FROM students WHERE {where_clause} ORDER BY regid",
-            params
+            f"SELECT * FROM students WHERE programme = ${1} AND batch = ${2} AND section = ${3} AND semester = ${4} ORDER BY regid",
+            programme, batch, section, semester
         )
         return await enrich_with_images(students)
     except HTTPException:
@@ -370,7 +335,9 @@ async def search_students(search: str, authorization: str = Header(...)):
     try:
         await get_current_user(authorization)
 
-        search = search.replace("%", "").replace("_", "").strip()
+        if len(search) < 3:
+            raise HTTPException(status_code=400, detail="Search term must be at least 3 characters long")
+
         students = await db.query(
             "SELECT * FROM students WHERE name ILIKE $1 OR email ILIKE $1 OR regid ILIKE $1",
             [f"%{search}%"]
@@ -445,7 +412,7 @@ async def update_student(
         try:
             await db.query("BEGIN")
             if oldregid_upper != regid:
-                # Use a CTE to update both tables atomically
+
                 await db.query(
                     """
                     WITH update_students AS (
@@ -630,8 +597,8 @@ async def generate_embedding(images: list[UploadFile] = File(...), regid: str = 
         
         if not embeddings:
             raise HTTPException(status_code=400, detail="No valid faces detected in the images")
-        
-        # Average all embeddings to create a single 128D vector
+
+        # Average all embeddings to create a single 512D vector
         avg_embedding = np.mean(embeddings, axis=0).tolist()
         
         return {"embedding": avg_embedding, "regid": regid}
@@ -648,11 +615,11 @@ async def submit_attendance(data: dict, authorization: str = Header(...)):
     try:
         current_user = await get_current_user(authorization)
 
-        class_name = data.get("class", "").strip()
+        class_name = data.get("class").strip()
         period = data.get("period")
-        students = data.get("students", [])
+        students = data.get("students")
 
-        if not class_name or not isinstance(students, list) or not students or period is None:
+        if not class_name or not isinstance(students, list) or not students or period is None or period < 1 or period > 8:
             raise HTTPException(status_code=400, detail="Missing required fields: class, period, and students")
 
         validators.validate_attendance_class(class_name)
@@ -660,7 +627,7 @@ async def submit_attendance(data: dict, authorization: str = Header(...)):
         VALID_STATUSES = {1, 0}
         for student in students:
             regid = (student.get("regid") or "").strip()
-            status = student.get("status", 1)
+            status = student.get("status", -1)
             if not regid:
                 raise ValueError("Each student must have a valid regid")
             if status not in VALID_STATUSES:
@@ -670,8 +637,8 @@ async def submit_attendance(data: dict, authorization: str = Header(...)):
         async with db.pool.acquire() as conn:
             async with conn.transaction():
                 for student in students:
-                    regid = (student.get("regid") or "").strip()
-                    status = student.get("status", 1)
+                    regid = student.get("regid").strip()
+                    status = student.get("status")
 
                     await conn.execute(
                         """
@@ -722,11 +689,13 @@ async def recognize_attendance(images: list[UploadFile] = File(...), authorizati
                 face_matrix = cv2.cvtColor(face_matrix, cv2.COLOR_RGB2BGR)
                 
                 embedding = face_recognition.generate_face_embedding(face_matrix)
-                if not embedding.all():
+                print("embedding: ", embedding)
+                if not embedding.all() or len(embedding) != 512:
+                    print("continuing..")
                     continue
 
-                regid = await face_recognition.match_face(embedding, threshold=float(os.getenv("FACE_MATCHING_THRESHOLD", "12.0")))
-                
+                regid = await face_recognition.match_face(embedding)
+
                 if regid and regid not in [s["regid"] for s in recognized_students]:
                     recognized_students.append({
                         "regid": regid,
@@ -738,7 +707,7 @@ async def recognize_attendance(images: list[UploadFile] = File(...), authorizati
     except HTTPException:
         raise
     except Exception as err:
-        logging.error(f"Face recognition error: {err}\n{traceback.format_exc()}")
+        print(f"Face recognition error: {err}\n{traceback.format_exc()}")
         return JSONResponse(status_code=500, content={"error": "Face recognition failed", "details": str(err)})
 
 @app.get("/attendance/summary/{regid}")
