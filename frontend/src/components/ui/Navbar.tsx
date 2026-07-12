@@ -45,10 +45,12 @@ export const Navbar: React.FC<NavbarProps> = ({ user, onLogout }) => {
       <div className="max-w-[1400px] mx-auto px-5 py-3">
         <div className="flex items-center justify-between">
           {/* Logo */}
-          <div className="text-2xl font-bold bg-fras-gold-gradient bg-clip-text text-transparent">
+          <div className="text-2xl font-bold bg-fras-gold-gradient bg-clip-text text-transparent flex items-center">
             <i className="fas fa-graduation-cap mr-2" />
-            FRAS
+            <span className="md:hidden">FRAS</span>
+            <span className="hidden md:inline">Facial Recognition Attendance System</span>
           </div>
+
 
           {/* Mobile menu toggle */}
           <div className="flex items-center gap-3">

@@ -45,9 +45,9 @@ const Students = memo(() => {
   const confirmDelete = async () => {
     if (!deleteCandidate) return
     try {
-      await studentApi.delete(deleteCandidate)
-      setStudents(prev => prev.filter(s => s.regid !== deleteCandidate))
       setIsDeleteModalOpen(false)
+      setStudents(prev => prev.filter(s => s.regid !== deleteCandidate))
+      await studentApi.delete(deleteCandidate)
       setDeleteCandidate(null)
     } catch (err: any) {
       alert('Failed to delete student: ' + err.message)
@@ -123,7 +123,7 @@ const Students = memo(() => {
       )}
 
       {!loading && !error && students.length > 0 && (
-        <div className="table-container overflow-x-auto [transform:rotateX(180deg)]">
+        <div className="table-container overflow-visible [transform:rotateX(180deg)]">
           <table className="table-base min-w-[1600px] [transform:rotateX(180deg)]">
             <thead>
               <tr className="bg-gray-50">
@@ -151,18 +151,32 @@ const Students = memo(() => {
                 <tr key={student.regid} className="table-row border-b border-gray-100 hover:bg-fras-gold/10 transition-colors">
                   <td className="table-cell">{index + 1}</td>
                   <td className="table-cell">
-                    {student.image ? (
-                      <img
-                        src={student.image}
-                        alt={student.name}
-                        className="w-12 h-12 object-cover rounded-lg border-2 border-fras-gold transition-transform duration-300 hover:scale-200 hover:z-50 relative"
-                      />
-                    ) : (
-                      <div className="w-12 h-12 bg-gray-200 rounded-lg flex items-center justify-center">
-                        <i className="fas fa-user text-gray-400" />
-                      </div>
-                    )}
-                  </td>
+  {student.image ? (
+    <div className="relative group w-12 h-12">
+      <img
+        src={student.image}
+        alt={student.name}
+        className="
+          w-12 h-12
+          object-cover
+          rounded-lg
+          border-2 border-fras-gold
+          transition-all duration-300
+          group-hover:scale-[3]
+          group-hover:absolute
+          group-hover:top-0
+          group-hover:left-0
+          group-hover:z-50
+          group-hover:shadow-2xl
+        "
+      />
+    </div>
+  ) : (
+    <div className="w-12 h-12 bg-gray-200 rounded-lg flex items-center justify-center">
+      <i className="fas fa-user text-gray-400" />
+    </div>
+  )}
+</td>
                   <td className="table-cell">
                     <div className="flex gap-2">
                        <button

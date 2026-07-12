@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, Suspense } from 'react'
 import { Outlet, useLocation, useNavigate, Navigate } from 'react-router-dom'
 import { Navbar, Sidebar, ToastContainer, useToast } from '../components/ui/'
 import { navigationItems } from '../constants/navigation'
@@ -10,9 +10,9 @@ const Layout = () => {
   const toast = useToast()
 
   const user = (() => {
-  const data = localStorage.getItem("user")
-  return data ? JSON.parse(data) : null
-})()
+    const data = localStorage.getItem("user")
+    return data ? JSON.parse(data) : null
+  })()
 
   // Listen for toast events
   useEffect(() => {
@@ -36,6 +36,12 @@ const Layout = () => {
     return () => window.removeEventListener('toast', handleToast as EventListener)
   }, [])
 
+  const PageLoader = () => (
+    <div className="flex h-[50vh] w-full items-center justify-center">
+      <i className="fas fa-spinner fa-spin text-4xl text-amber-500" />
+    </div>
+  )
+
   const removeToast = useCallback((id: string) => {
     setToasts(prev => prev.filter(t => t.id !== id))
   }, [])
@@ -53,7 +59,9 @@ const Layout = () => {
   if (location.pathname === '/login' || location.pathname === '/register') {
     return (
       <>
-        <Outlet />
+        <Suspense fallback={<PageLoader />}>
+          <Outlet />
+        </Suspense>
         <ToastContainer toasts={toasts} onRemove={removeToast} />
       </>
     )
@@ -82,7 +90,9 @@ if (
 
             {/* Main Content */}
             <main className="flex-1 min-w-0">
-              <Outlet />
+              <Suspense fallback={ <PageLoader />}>
+                <Outlet />
+              </Suspense>
             </main>
           </div>
         </div>

@@ -30,7 +30,6 @@ async def match_face(embedding: List[float]) -> Optional[str]:
     threshold = float(os.getenv("FACE_MATCHING_THRESHOLD", "0.68"))
 
     async with db.pool.acquire() as conn:
-        print(embedding)
         match = await conn.fetchrow(
             """
             SELECT regid, distance
@@ -81,7 +80,7 @@ def generate_face_embedding(face_matrix: np.ndarray) -> Optional[np.ndarray]:
         embeddings = DeepFace.represent(
             img_path=face_matrix,
             model_name="ArcFace",  # 512D embeddings
-            detector_backend="skip",
+            detector_backend="retinaface",
             enforce_detection=False
         )
 

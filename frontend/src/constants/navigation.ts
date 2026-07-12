@@ -20,13 +20,7 @@ export const navigationItems: NavItem[] = [
       { name: 'Add Student', icon: 'fa-user-plus', path: '/add-student' },
     ],
   },
-  {
-    name: 'Attendance', icon: 'fa-check-circle',
-    children: [
-      { name: 'Take Attendance', icon: 'fa-clipboard-check', path: '/take-attendance' },
-      { name: 'Check Attendance', icon: 'fa-calendar-check', path: '/check-attendance' },
-    ],
-  },
+  { name: 'Take Attendance', icon: 'fa-clipboard-check', path: '/take-attendance' },
   {
     name: 'Faculty', icon: 'fa-chalkboard-teacher',
     children: [

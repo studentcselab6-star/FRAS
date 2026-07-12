@@ -9,6 +9,7 @@ import {
     semesterOptions,
 } from '../constants/options'
 import type { Student } from '../types'
+import { all } from 'axios'
 
 type MarkStatus = 1 | 0
 
@@ -130,10 +131,18 @@ const TakeAttendance: React.FC = () => {
             const response = await attendanceApi.recognize(
                 images.map(img => img.blob)
             )
-            
-            setRecognizedStudents(response.data.recognized_students)
 
-            toast.success(`Recognized ${response.data.recognized_students.length} student(s)`)
+            const validRegIds = new Set(students.map(student => student.regid));
+
+            const filteredRecognizedStudents =
+                response.data.recognized_students.filter(
+                    (recognized: { regid: string; confidence: number }) =>
+                        validRegIds.has(recognized.regid)
+                );
+            
+            setRecognizedStudents(filteredRecognizedStudents);
+            
+            toast.success(`Recognized ${filteredRecognizedStudents.length} student(s)`);
         } catch (err: any) {
             toast.error(err?.response?.data?.detail || 'Face recognition failed')
         } finally {
@@ -311,7 +320,7 @@ const TakeAttendance: React.FC = () => {
 
                 {!loading && hasFilter && (
                     <>
-                        <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+                        <div className="flex flex-wrap items-center justify-between gap-4 mb-6 pb-6 border-b border-gray-200">
                             <div className="flex items-center gap-4 text-sm">
                                 <span>
                                     Total: <strong>{students.length}</strong>
@@ -326,20 +335,18 @@ const TakeAttendance: React.FC = () => {
                                 </span>
                             </div>
                             <div className="flex gap-2 flex-wrap">
-                                <Button
-                                    variant="success"
-                                    size="sm"
+                                <button
+                                    className="bg-green-600 text-white rounded px-2 py-1 text-sm"
                                     onClick={() => toggleAll(1)}
                                 >
-                                    Mark All Present
-                                </Button>
-                                <Button
-                                    variant="danger"
-                                    size="sm"
+                                    All Present
+                                </button>
+                                <button
+                                    className="bg-red-600 text-white rounded px-2 py-1 text-sm"
                                     onClick={() => toggleAll(0)}
                                 >
-                                    Mark All Absent
-                                </Button>
+                                    All Absent
+                                </button>
                             </div>
                         </div>
                         {students.length === 0 ? (
@@ -354,19 +361,13 @@ const TakeAttendance: React.FC = () => {
                                 <table className="w-full">
                                     <thead>
                                         <tr className="bg-gray-50 border-b border-gray-200">
-                                            <th className="px-4 py-3 text-left">
-                                                ID
-                                            </th>
-                                            <th className="px-4 py-3 text-left">
+                                            <th className="px-2 py-1 text-left">
                                                 Reg ID
                                             </th>
-                                            <th className="px-4 py-3 text-left">
-                                                Name
+                                            <th className="px-2 py-1 text-left">
+                                                Match
                                             </th>
-                                            <th className="px-4 py-3 text-left">
-                                                Recognition
-                                            </th>
-                                            <th className="px-4 py-3 text-left">
+                                            <th className="px-2 py-1 text-left">
                                                 Status
                                             </th>
                                         </tr>
@@ -374,7 +375,7 @@ const TakeAttendance: React.FC = () => {
 
                                     <tbody className="divide-y divide-gray-100">
                                         {students.map(
-                                            (student, i) => {
+                                            (student) => {
                                                 const row = rowMap.get(student.regid)
 
                                                 const status = row?.status ?? 1
@@ -391,49 +392,43 @@ const TakeAttendance: React.FC = () => {
                                                         }
 
                                                 return (
-                                                    <tr
-                                                        key={student.regid}
-                                                        className="hover:bg-fras-gold/10 transition-colors"
-                                                    >
-                                                        <td className="px-4 py-3">{i + 1}</td>
-                                                        <td className="px-4 py-3 font-mono">
+                                                    <tr key={student.regid}>
+                                                        <td className="px-2 py-3 font-mono text-md break-all border-l border-gray-300/50">
                                                             {student.regid}
                                                         </td>
-                                                <td className="px-4 py-3 font-medium">
-                                                    {student.name}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {recognizedStudents.find(s => s.regid === student.regid) ? (
-                                                        <div className="flex items-center gap-2">
-                                                            {/* Show suggested status based on confidence */}
-                                                            {(() => {
-                                                                const confidence = recognizedStudents.find(s => s.regid === student.regid)?.confidence || 0
-                                                                if (confidence >= 0.7) {
-                                                                    return <i className="fas fa-check-circle text-green-500" title="Suggested Present (High confidence)" />
-                                                                } else if (confidence >= 0.3) {
-                                                                    return <i className="fas fa-exclamation-triangle text-yellow-500" title="Suggested Doubt (Medium confidence)" />
-                                                                } else {
-                                                                    return <i className="fas fa-times-circle text-red-500" title="Suggested Absent (Low confidence)" />
-                                                                }
-                                                            })()}
+                                                        <td className="px-2 py-3 break-all border-l border-r border-gray-300/50">
+                                                            {recognizedStudents.find(s => s.regid === student.regid) ? (
+                                                                <div className="flex items-center gap-2 justify-center">
+                                                                    {(() => {
+                                                                        const confidence = recognizedStudents.find(s => s.regid === student.regid)?.confidence || 0
+                                                                        if (confidence >= 0.7) {
+                                                                            return <i className="fas fa-check-circle text-green-500" title="Suggested Present (High confidence)" />
+                                                                        } else if (confidence >= 0.3) {
+                                                                            return <i className="fas fa-exclamation-triangle text-yellow-500" title="Suggested Doubt (Medium confidence)" />
+                                                                        } else {
+                                                                            return <i className="fas fa-times-circle text-red-500" title="Suggested Absent (Low confidence)" />
+                                                                        }
+                                                                    })()}
 
-                                                            <span className="text-sm text-gray-600 font-medium">
-                                                                {Math.round((recognizedStudents.find(s => s.regid === student.regid)?.confidence || 0) * 100)}%
-                                                            </span>
-                                                        </div>
-                                                    ) : (
-                                                        <i className="fas fa-question-circle text-gray-400" title="Not recognized" />
-                                                    )}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => toggleStatus(student.regid)}
-                                                        className={`px-3 py-1 rounded-full font-semibold text-white ${statusLabel.color}`}
-                                                    >
-                                                        {statusLabel.text}
-                                                    </button>
-                                                </td>
+                                                                    <span className="text-sm text-gray-600 font-medium">
+                                                                        {Math.round((recognizedStudents.find(s => s.regid === student.regid)?.confidence || 0) * 100)}%
+                                                                    </span>
+                                                                </div>
+                                                            ) : (
+                                                                <div className="flex items-center gap-2 justify-center">
+                                                                    <i className="fas fa-question-circle text-gray-400" title="Not recognized" />
+                                                                </div>
+                                                            )}
+                                                        </td>
+                                                        <td className="px-4 py-3 border-r border-gray-300/50">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => toggleStatus(student.regid)}
+                                                                className={`px-3 py-2 rounded-full font-semibold text-white ${statusLabel.color}`}
+                                                            >
+                                                                {statusLabel.text}
+                                                            </button>
+                                                        </td>
                                                     </tr>
                                                 )
                                             }

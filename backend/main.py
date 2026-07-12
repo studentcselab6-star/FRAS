@@ -9,6 +9,7 @@ import cv2
 import numpy as np
 import uvicorn
 import validators
+
 from asyncpg.exceptions import UniqueViolationError
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile
@@ -17,7 +18,6 @@ from fastapi.responses import JSONResponse
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from supabase import create_client
-from pgvector.asyncpg import register_vector
 
 import db
 import face_recognition
@@ -698,7 +698,7 @@ async def recognize_attendance(images: list[UploadFile] = File(...), authorizati
                         "regid": match["regid"],
                         "confidence": float(1 - match["distance"])
                     })
-
+ 
         return {"recognized_students": recognized_students}
         
     except HTTPException:

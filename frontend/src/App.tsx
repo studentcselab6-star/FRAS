@@ -27,7 +27,7 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 function App() {
   return (
     <BrowserRouter>
-      <Suspense fallback={<div>Loading page...</div>}>
+      <Suspense fallback={<Layout />}>
         <Routes>
           <Route path="/" element={ <Layout /> }>
             <Route path="login" element={<Login />} />
